@@ -57,17 +57,20 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
       {/* Action bar — shown on tap */}
       {showActions && (
         <div
-          className="flex items-center gap-1 py-1 px-3 bg-muted/50 rounded-lg mx-2 mb-1"
+          className={cn(
+            "py-1 px-3 bg-muted/50 rounded-lg mx-2 mb-1",
+            depth < 2 ? "grid grid-cols-2 gap-1" : "flex items-center gap-1"
+          )}
           style={{ marginLeft: `${depth * 20 + 16}px` }}
         >
-          <Link href={`/categories/${node.id}/edit`} className="flex-1">
+          <Link href={`/categories/${node.id}/edit`}>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
               <Pencil className="h-3.5 w-3.5" />
               编辑
             </Button>
           </Link>
           {depth < 2 && (
-            <Link href={`/categories/new?type=${node.type}&parentId=${node.id}`} className="flex-1" onClick={() => setShowActions(false)}>
+            <Link href={`/categories/new?type=${node.type}&parentId=${node.id}`} onClick={() => setShowActions(false)}>
               <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
                 <Plus className="h-3.5 w-3.5" />
                 添加子分类
@@ -78,7 +81,7 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 justify-start gap-2 h-9"
+              className={cn("justify-start gap-2 h-9", depth < 2 ? "w-full" : "flex-1")}
               onClick={() => { onArchive(node.id); setShowActions(false) }}
             >
               {node.isArchived ? (
@@ -92,7 +95,7 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
             <Button
               variant="ghost"
               size="sm"
-              className="flex-1 justify-start gap-2 h-9 text-destructive hover:text-destructive"
+              className={cn("justify-start gap-2 h-9 text-destructive hover:text-destructive", depth < 2 ? "w-full" : "flex-1")}
               onClick={() => { onDelete(node.id); setShowActions(false) }}
             >
               <Trash2 className="h-3.5 w-3.5" />
