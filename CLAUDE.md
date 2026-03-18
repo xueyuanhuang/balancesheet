@@ -8,15 +8,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 - `pnpm dev` — Start dev server (port 3000)
+- `pnpm dev --hostname 0.0.0.0` — Start dev server accessible on LAN (for mobile testing)
 - `pnpm build` — Production build (also runs TypeScript checks)
 - `pnpm lint` — Run ESLint
+- `git push` — Auto-deploys to Vercel (https://balancesheet-sigma.vercel.app)
 
 ## Architecture
 
 Personal balance sheet PWA — mobile-first, fully client-side (no backend). Data lives in IndexedDB via Dexie.js. Supports multi-currency (CNY/USD/HKD).
 
 ### Layer Structure
-1. **DB** (`lib/db/`) — Dexie schema v2 with 5 tables: categories, accounts, operations, entries, exchangeRates
+1. **DB** (`lib/db/`) — Dexie schema currently at v11 (IDB v110 after ×10 multiplier). 5 active tables: categories, accounts, operations, entries, exchangeRates. The `transactions` table from v1 was deleted in v2. v11 was added to force-upgrade databases stuck at IDB v10.
 2. **Services** (`lib/services/`) — Business logic, all writes go through here. Services handle validation, cascade operations, and balance recalculation
 3. **Hooks** (`lib/hooks/`) — Reactive queries via `dexie-react-hooks` (`useLiveQuery`). All marked `"use client"`
 4. **Components** — shadcn/ui on `@base-ui/react` (NOT Radix), plus domain components
@@ -49,6 +51,8 @@ Personal balance sheet PWA — mobile-first, fully client-side (no backend). Dat
 - **Cascade delete** — deleting a category removes all descendants
 - **ID generation** — `generateId()` from `lib/utils/id.ts` (wraps nanoid)
 - **Chinese locale** — all UI text in zh-CN, date-fns uses `zhCN` locale
+- **Dexie transaction scope** — when calling `db.transaction("rw", [...], ...)`, ALL tables accessed inside the callback must be declared in the scope array. Accessing `db.categories` inside a transaction scoped to only `[db.operations, db.entries, db.accounts]` throws `IDBTransaction objectStore not found`
+- **Currency display** — `lib/hooks/use-currency-display.ts` persists display mode (auto/CNY/USD/HKD) in localStorage. `convertFromCNY()` in `lib/utils/currency.ts` handles reverse conversion with null fallback when rate is missing
 
 ### Navigation
 Bottom nav: 4 tabs (总览/账户/流水/设置) + center FAB (记账). Categories page and exchange rate settings are accessed from Settings.
