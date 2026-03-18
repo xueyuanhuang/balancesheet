@@ -127,3 +127,49 @@
     @apply font-sans;
   }
 }
+
+/* Mobile optimizations */
+@layer base {
+  /* Ensure minimum touch target size */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Exception for inline and icon buttons with explicit small sizes */
+  .h-7, .h-8, .h-9 {
+    min-height: unset;
+  }
+
+  .w-7, .w-8, .w-9 {
+    min-width: unset;
+  }
+
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Safe area padding for bottom nav */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Disable user select on interactive elements for mobile feel */
+  nav, button, [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Fix for iOS input zoom - ensure inputs are at least 16px */
+  input, select, textarea {
+    font-size: max(16px, 1em);
+  }
+}
