@@ -45,21 +45,21 @@ export const accountService = {
   },
 
   async update(id: string, data: Partial<Pick<Account, "name" | "categoryId" | "openingBalance" | "currency" | "note" | "sortOrder">>): Promise<void> {
+    const updates: Record<string, unknown> = { ...data, updatedAt: Date.now() }
+
+    const account = await db.accounts.get(id)
+    if (!account) throw new Error("账户不存在")
+
     // Prevent currency change if account has entries
-    if (data.currency !== undefined) {
+    if (data.currency !== undefined && data.currency !== account.currency) {
       const entryCount = await db.entries.where("accountId").equals(id).count()
       if (entryCount > 0) {
         throw new Error("该账户已有流水记录，无法修改币种。")
       }
     }
 
-    const updates: Record<string, unknown> = { ...data, updatedAt: Date.now() }
-
     // If opening balance changed, recalculate balance
     if (data.openingBalance !== undefined) {
-      const account = await db.accounts.get(id)
-      if (!account) throw new Error("账户不存在")
-
       const entries = await db.entries.where("accountId").equals(id).toArray()
       const incSum = entries
         .filter((e) => e.effect === "increase")
