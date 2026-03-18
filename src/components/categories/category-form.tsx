@@ -17,6 +17,26 @@ interface CategoryFormProps {
   defaultParentId?: string | null
 }
 
+function getCategoryDepth(catId: string, allCats: Category[]): number {
+  let depth = 1
+  let cat = allCats.find((c) => c.id === catId)
+  while (cat?.parentId) {
+    depth++
+    cat = allCats.find((c) => c.id === cat!.parentId)
+  }
+  return depth
+}
+
+function getCategoryPath(catId: string, allCats: Category[]): string {
+  const cat = allCats.find((c) => c.id === catId)
+  if (!cat) return ""
+  if (cat.parentId) {
+    const parent = allCats.find((c) => c.id === cat.parentId)
+    if (parent) return `${parent.name} / ${cat.name}`
+  }
+  return cat.name
+}
+
 export function CategoryForm({ mode, initialData, defaultType = "asset", defaultParentId = null }: CategoryFormProps) {
   const router = useRouter()
   const [name, setName] = useState(initialData?.name ?? "")
@@ -25,10 +45,14 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
   const [loading, setLoading] = useState(false)
 
   const categories = useCategories(type)
-  // Only show root categories as potential parents (exclude self and children in edit mode)
-  const parentOptions = categories
-    .filter((c) => c.parentId === null && (!initialData || c.id !== initialData.id))
-    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Allow L1 (depth=1) and L2 (depth=2) as parents (creating L2 or L3 children)
+  const parentOptions = categories.filter((c) => {
+    if (c.isArchived) return false
+    if (initialData && c.id === initialData.id) return false
+    const depth = getCategoryDepth(c.id, categories)
+    return depth < 3
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,13 +122,17 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
         <Select value={parentId ?? "__none__"} onValueChange={(v) => setParentId(v === "__none__" ? null : v)}>
           <SelectTrigger className="w-full">
             <span data-slot="select-value" className="flex flex-1 text-left truncate">
-              {parentId ? parentOptions.find((c) => c.id === parentId)?.name ?? "选择父级分类" : "无（顶级分类）"}
+              {parentId
+                ? getCategoryPath(parentId, categories) || "选择父级分类"
+                : "无（顶级分类）"}
             </span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">无（顶级分类）</SelectItem>
             {parentOptions.map((c) => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              <SelectItem key={c.id} value={c.id}>
+                {getCategoryPath(c.id, categories)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

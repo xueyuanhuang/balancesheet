@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,7 +91,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
 
   const selectedCategory = categories.find((c) => c.id === categoryId)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [expandedParent, setExpandedParent] = useState<string | null>(null)
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set())
   const pickerRef = useRef<HTMLDivElement>(null)
 
   // Close picker on outside click
@@ -100,7 +100,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
     function handleClick(e: MouseEvent) {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setPickerOpen(false)
-        setExpandedParent(null)
+        setExpandedNodes(new Set())
       }
     }
     document.addEventListener("mousedown", handleClick)
@@ -112,46 +112,58 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
     if (!cat) return ""
     if (cat.parentId) {
       const parent = categories.find((c) => c.id === cat.parentId)
+      if (parent?.parentId) {
+        const grandparent = categories.find((c) => c.id === parent.parentId)
+        if (grandparent) return `${grandparent.name} / ${parent.name} / ${cat.name}`
+      }
       if (parent) return `${parent.name} / ${cat.name}`
     }
     return cat.name
   }
 
-  function handleCategorySelect(node: CategoryTreeNode) {
-    const hasChildren = node.children.filter((c) => !c.isArchived).length > 0
-    if (hasChildren) {
-      // Toggle expand/collapse for this parent
-      setExpandedParent((prev) => (prev === node.id ? null : node.id))
-    } else {
-      // Leaf node — select it
-      setCategoryId(node.id)
-      setPickerOpen(false)
-      setExpandedParent(null)
-    }
-  }
-
-  function renderLevel1Nodes(trees: CategoryTreeNode[], typeLabel: string) {
-    const nodes = trees.filter((n) => !n.isArchived)
-    if (nodes.length === 0) return null
+  function renderPickerNodes(nodes: CategoryTreeNode[], depth: number, typeLabel?: string): React.ReactNode {
+    const activeNodes = nodes.filter((n) => !n.isArchived)
+    if (activeNodes.length === 0) return null
     return (
       <>
-        <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">{typeLabel}</div>
-        {nodes.map((node) => {
+        {typeLabel && (
+          <div className="px-3 py-1.5 text-xs text-muted-foreground font-medium">{typeLabel}</div>
+        )}
+        {activeNodes.map((node) => {
           const activeChildren = node.children.filter((c) => !c.isArchived)
           const hasChildren = activeChildren.length > 0
-          const isExpanded = expandedParent === node.id
+          const isExpanded = expandedNodes.has(node.id)
           const isSelected = !hasChildren && categoryId === node.id
+          const indent = depth * 12 + 12
           return (
             <div key={node.id}>
               <div
                 className={cn(
-                  "flex items-center px-3 py-2.5 cursor-pointer",
+                  "flex items-center py-2.5 cursor-pointer",
                   isSelected ? "bg-accent" : "hover:bg-accent/50"
                 )}
-                onClick={() => handleCategorySelect(node)}
+                style={{ paddingLeft: `${indent}px`, paddingRight: 12 }}
+                onClick={() => {
+                  if (hasChildren) {
+                    setExpandedNodes((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(node.id)) next.delete(node.id)
+                      else next.add(node.id)
+                      return next
+                    })
+                  } else {
+                    setCategoryId(node.id)
+                    setPickerOpen(false)
+                    setExpandedNodes(new Set())
+                  }
+                }}
               >
                 {hasChildren ? (
-                  isExpanded ? <ChevronDown className="w-4 h-4 mr-2 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
+                  isExpanded ? (
+                    <ChevronDown className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 mr-2 text-muted-foreground shrink-0" />
+                  )
                 ) : (
                   <span className="w-4 mr-2 shrink-0" />
                 )}
@@ -159,27 +171,8 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
                 {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
               </div>
               {hasChildren && isExpanded && (
-                <div className="bg-muted/30">
-                  {activeChildren.map((child) => {
-                    const childSelected = categoryId === child.id
-                    return (
-                      <div
-                        key={child.id}
-                        className={cn(
-                          "flex items-center pl-9 pr-3 py-2.5 cursor-pointer",
-                          childSelected ? "bg-accent" : "hover:bg-accent/50"
-                        )}
-                        onClick={() => {
-                          setCategoryId(child.id)
-                          setPickerOpen(false)
-                          setExpandedParent(null)
-                        }}
-                      >
-                        <span className="flex-1 text-sm">{child.name}</span>
-                        {childSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
-                      </div>
-                    )
-                  })}
+                <div className={depth === 0 ? "bg-muted/30" : undefined}>
+                  {renderPickerNodes(activeChildren, depth + 1)}
                 </div>
               )}
             </div>
@@ -205,7 +198,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
               "flex items-center w-full rounded-md border border-input bg-background px-3 py-2 text-sm",
               "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             )}
-            onClick={() => { setPickerOpen((v) => !v); setExpandedParent(null) }}
+            onClick={() => { setPickerOpen((v) => !v); setExpandedNodes(new Set()) }}
           >
             <span className="flex-1 text-left truncate">
               {selectedCategory
@@ -216,8 +209,8 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
           </button>
           {pickerOpen && (
             <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-64 overflow-y-auto">
-              {renderLevel1Nodes(assetTree, "资产")}
-              {renderLevel1Nodes(liabilityTree, "负债")}
+              {renderPickerNodes(assetTree, 0, "资产")}
+              {renderPickerNodes(liabilityTree, 0, "负债")}
             </div>
           )}
         </div>

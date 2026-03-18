@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ChevronRight, ChevronDown, Archive, ArchiveRestore, Pencil, Trash2, MoreHorizontal } from "lucide-react"
+import { ChevronRight, ChevronDown, Archive, ArchiveRestore, Pencil, Trash2, MoreHorizontal, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { CategoryTreeNode } from "@/types"
@@ -66,6 +66,14 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
               编辑
             </Button>
           </Link>
+          {depth < 2 && (
+            <Link href={`/categories/new?type=${node.type}&parentId=${node.id}`} className="flex-1" onClick={() => setShowActions(false)}>
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
+                <Plus className="h-3.5 w-3.5" />
+                添加子分类
+              </Button>
+            </Link>
+          )}
           {onArchive && (
             <Button
               variant="ghost"

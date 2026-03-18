@@ -31,6 +31,14 @@ export const categoryService = {
           db.categories.filter((c) => c.parentId === null && c.type === data.type).toArray()
         )
 
+    // Validate: max depth = 3
+    if (data.parentId) {
+      const parentDepth = await this._getCategoryDepth(data.parentId)
+      if (parentDepth >= 3) {
+        throw new Error("分类最多支持三级层级")
+      }
+    }
+
     if (siblings.some((s) => s.name === data.name)) {
       throw new Error("同级下已存在同名分类")
     }
@@ -76,6 +84,14 @@ export const categoryService = {
       }
     }
 
+    // Validate max depth = 3 when changing parentId
+    if (data.parentId !== undefined && data.parentId !== null) {
+      const parentDepth = await this._getCategoryDepth(data.parentId)
+      if (parentDepth >= 3) {
+        throw new Error("分类最多支持三级层级")
+      }
+    }
+
     // Check unique name among new siblings if name or parentId changed
     if (data.name !== undefined || data.parentId !== undefined) {
       const existing = await db.categories.get(id)
@@ -111,6 +127,19 @@ export const categoryService = {
       isArchived: false,
       updatedAt: Date.now(),
     })
+  },
+
+  /** Get the depth of a category (L1=1, L2=2, L3=3) */
+  async _getCategoryDepth(id: string): Promise<number> {
+    let depth = 1
+    let catId: string = id
+    while (true) {
+      const cat = await db.categories.get(catId)
+      if (!cat?.parentId) break
+      depth++
+      catId = cat.parentId
+    }
+    return depth
   },
 
   /** Collect all descendant IDs (children, grandchildren, etc.) */
