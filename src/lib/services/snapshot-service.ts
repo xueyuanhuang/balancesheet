@@ -12,7 +12,7 @@ export const snapshotService = {
     totalAssets: number
     totalLiabilities: number
   }): Promise<void> {
-    const date = format(new Date(), "yyyy-MM-dd")
+    const date = format(new Date(), "yyyy-MM-dd HH:00")
     await db.netWorthSnapshots.put({
       date,
       netWorth,

@@ -41,14 +41,21 @@ function formatYAxis(cents: number): string {
   return yuan.toLocaleString("zh-CN", { maximumFractionDigits: 0 })
 }
 
+function parseSnapshotDate(dateStr: string): Date {
+  // Handle both "YYYY-MM-DD" (legacy) and "YYYY-MM-DD HH:00" formats
+  if (dateStr.length === 10) return new Date(dateStr + "T00:00:00")
+  const [datePart, timePart] = dateStr.split(" ")
+  return new Date(`${datePart}T${timePart}:00`)
+}
+
 function getXAxisFormat(days: number): (date: string) => string {
   if (days > 0 && days <= 7) {
-    return (date: string) => format(new Date(date), "EEEE", { locale: zhCN })
+    return (date: string) => format(parseSnapshotDate(date), "M/d HH:mm")
   }
   if (days > 0 && days <= 90) {
-    return (date: string) => format(new Date(date), "M/d")
+    return (date: string) => format(parseSnapshotDate(date), "M/d")
   }
-  return (date: string) => format(new Date(date), "M月", { locale: zhCN })
+  return (date: string) => format(parseSnapshotDate(date), "M月", { locale: zhCN })
 }
 
 export function NetWorthChart() {
@@ -77,7 +84,7 @@ export function NetWorthChart() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            暂无历史数据，每次打开总览会自动记录
+            暂无历史数据，每次打开总览页会自动记录
           </div>
         </CardContent>
       </Card>
@@ -92,7 +99,7 @@ export function NetWorthChart() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            数据不足，多记录几天再来看趋势
+            数据不足，多打开几次总览页即可看到趋势
           </div>
         </CardContent>
       </Card>
@@ -154,7 +161,7 @@ export function NetWorthChart() {
                 <ChartTooltipContent
                   labelFormatter={(_, payload) => {
                     if (!payload?.[0]?.payload?.date) return ""
-                    return format(new Date(payload[0].payload.date), "yyyy年M月d日", { locale: zhCN })
+                    return format(parseSnapshotDate(payload[0].payload.date), "yyyy年M月d日 HH:mm", { locale: zhCN })
                   }}
                   formatter={(value) => formatAmount(value as number)}
                   hideIndicator

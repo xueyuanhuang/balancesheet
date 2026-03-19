@@ -72,7 +72,7 @@ export interface CategoryTreeNode extends Category {
 
 // Net worth snapshot (recorded when user opens dashboard)
 export interface NetWorthSnapshot {
-  date: string        // "YYYY-MM-DD" local date, primary key
+  date: string        // "YYYY-MM-DD HH:00" local datetime, primary key
   netWorth: number    // CNY cents
   totalAssets: number
   totalLiabilities: number

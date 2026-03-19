@@ -20,7 +20,7 @@ export function useRecordSnapshot({
   useEffect(() => {
     if (!hasAccounts) return
 
-    const todayKey = format(new Date(), "yyyy-MM-dd")
+    const todayKey = format(new Date(), "yyyy-MM-dd HH:00")
     const recordKey = `${todayKey}:${netWorth}:${totalAssets}:${totalLiabilities}`
 
     // Skip if same values already recorded
