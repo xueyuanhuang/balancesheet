@@ -41,7 +41,11 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
       .map((cat) => {
         const catAccounts = accounts
           .filter((a) => a.categoryId === cat.id && !a.isArchived && a.id !== excludeId)
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .sort((a, b) => {
+            const usageDiff = getAccountUsageCount(b.id) - getAccountUsageCount(a.id)
+            if (usageDiff !== 0) return usageDiff
+            return a.name.localeCompare(b.name)
+          })
         if (catAccounts.length === 0) return null
         return { category: cat, accounts: catAccounts } as CategoryAccountGroup
       })
