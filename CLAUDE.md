@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Prefer using sub-agents (Task tool) for parallel execution whenever possible, maximize parallelism
 
 ## Commands
-- `pnpm dev` — Start dev server (port 3000)
+- `pnpm dev` — Start dev server (port 3000, use `--hostname 0.0.0.0` for LAN access)
 - `pnpm dev --hostname 0.0.0.0` — Start dev server accessible on LAN (for mobile testing)
 - `pnpm build` — Production build (also runs TypeScript checks)
 - `pnpm lint` — Run ESLint
