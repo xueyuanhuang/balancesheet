@@ -272,14 +272,18 @@ function CategoryAccountTreeNode({
   rateMap,
   displayCurrency,
   drag,
+  expandedIds,
+  onToggleExpand,
 }: {
   node: CategoryAccountNode
   depth?: number
   rateMap: Record<string, number>
   displayCurrency: CurrencyDisplayMode
   drag: DragProps
+  expandedIds: Set<string>
+  onToggleExpand: (id: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const expanded = expandedIds.has(node.category.id)
   const nodeRef = useRef<HTMLDivElement>(null)
   const hasContent = node.children.length > 0 || node.accounts.length > 0
 
@@ -339,7 +343,7 @@ function CategoryAccountTreeNode({
           style={{ paddingLeft: `${depth * 16 + 16}px`, paddingRight: 16 }}
           onClick={() => {
             if (drag.isDragging) return
-            if (hasContent) setExpanded(!expanded)
+            if (hasContent) onToggleExpand(node.category.id)
           }}
         >
           <span className="flex-1 text-left font-medium truncate flex items-center gap-1">
@@ -371,6 +375,8 @@ function CategoryAccountTreeNode({
               rateMap={rateMap}
               displayCurrency={displayCurrency}
               drag={drag}
+              expandedIds={expandedIds}
+              onToggleExpand={onToggleExpand}
             />
           ))}
           {groups.map((group) =>
@@ -411,11 +417,35 @@ function CategoryAccountTreeNode({
   )
 }
 
+const EXPANDED_STORAGE_KEY = "accountListExpandedCategories"
+
 export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: CurrencyDisplayMode }) {
   const accounts = useAccounts()
   const categories = useCategories()
   const rateMap = useRateMap()
   const { assetTree, liabilityTree } = useCategoryTree(categories)
+
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set()
+    try {
+      const raw = sessionStorage.getItem(EXPANDED_STORAGE_KEY)
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  const handleToggleExpand = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      try {
+        sessionStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify([...next]))
+      } catch { /* ignore */ }
+      return next
+    })
+  }, [])
 
   const allCategoryNodes = useMemo(
     () => [...flattenTree(assetTree), ...flattenTree(liabilityTree)],
@@ -504,6 +534,8 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
               rateMap={rateMap}
               displayCurrency={displayCurrency}
               drag={drag}
+              expandedIds={expandedIds}
+              onToggleExpand={handleToggleExpand}
             />
           ))}
         </section>
@@ -522,6 +554,8 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
               rateMap={rateMap}
               displayCurrency={displayCurrency}
               drag={drag}
+              expandedIds={expandedIds}
+              onToggleExpand={handleToggleExpand}
             />
           ))}
         </section>
