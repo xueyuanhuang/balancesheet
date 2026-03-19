@@ -11,6 +11,7 @@ export interface Category {
   parentId: string | null
   sortOrder: number
   isArchived: boolean
+  usageCount?: number
   createdAt: number
   updatedAt: number
 }

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger } from "@/components/ui/select"
 import { AmountInput } from "@/components/shared/amount-input"
 import { accountService } from "@/lib/services/account-service"
+import { categoryService } from "@/lib/services/category-service"
 import { useCategories } from "@/lib/hooks/use-categories"
 import { useCategoryTree } from "@/lib/hooks/use-category-tree"
 import { CURRENCIES } from "@/lib/utils/constants"
@@ -70,6 +71,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
           note,
         })
         localStorage.setItem("lastCurrency", currency)
+        await categoryService.incrementUsageCount(categoryId)
         toast.success("账户创建成功")
       } else if (initialData) {
         await accountService.update(initialData.id, {
@@ -79,6 +81,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
           currency,
           note,
         })
+        await categoryService.incrementUsageCount(categoryId)
         toast.success("账户更新成功")
       }
       router.back()

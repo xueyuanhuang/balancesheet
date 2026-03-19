@@ -57,6 +57,7 @@ export const categoryService = {
       parentId: data.parentId,
       sortOrder: maxSort + 1,
       isArchived: false,
+      usageCount: 0,
       createdAt: now,
       updatedAt: now,
     })
@@ -294,6 +295,13 @@ export const categoryService = {
         updatedAt: Date.now(),
       })
     })
+  },
+
+  /** Increment usageCount when this category is selected as parent */
+  async incrementUsageCount(id: string): Promise<void> {
+    const cat = await db.categories.get(id)
+    if (!cat) return
+    await db.categories.update(id, { usageCount: (cat.usageCount ?? 0) + 1 })
   },
 
   /** Delete a category and all its descendants (cascade) */

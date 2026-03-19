@@ -47,12 +47,19 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
   const categories = useCategories(type)
 
   // Allow L1 (depth=1) and L2 (depth=2) as parents (creating L2 or L3 children)
-  const parentOptions = categories.filter((c) => {
-    if (c.isArchived) return false
-    if (initialData && c.id === initialData.id) return false
-    const depth = getCategoryDepth(c.id, categories)
-    return depth < 3
-  })
+  // Sort by usageCount desc, then name asc
+  const parentOptions = categories
+    .filter((c) => {
+      if (c.isArchived) return false
+      if (initialData && c.id === initialData.id) return false
+      const depth = getCategoryDepth(c.id, categories)
+      return depth < 3
+    })
+    .sort((a, b) => {
+      const countDiff = (b.usageCount ?? 0) - (a.usageCount ?? 0)
+      if (countDiff !== 0) return countDiff
+      return a.name.localeCompare(b.name)
+    })
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,9 +72,11 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
     try {
       if (mode === "create") {
         await categoryService.create({ name: name.trim(), type, parentId })
+        if (parentId) await categoryService.incrementUsageCount(parentId)
         toast.success("分类创建成功")
       } else if (initialData) {
         await categoryService.update(initialData.id, { name: name.trim(), parentId })
+        if (parentId) await categoryService.incrementUsageCount(parentId)
         toast.success("分类更新成功")
       }
       router.back()
