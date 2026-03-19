@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react"
 import Link from "next/link"
-import { Download, Upload, FolderTree, AlertTriangle, Trash2 } from "lucide-react"
+import { Download, Upload, FolderTree, AlertTriangle, Trash2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/layout/page-header"
 import { backupService } from "@/lib/services/backup-service"
+import { exchangeRateService } from "@/lib/services/exchange-rate-service"
+import { useExchangeRates } from "@/lib/hooks/use-exchange-rates"
 import { resetAllData } from "@/lib/db/seed"
 import { toast } from "sonner"
 
@@ -24,8 +26,23 @@ export default function SettingsPage() {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [importing, setImporting] = useState(false)
   const [resetting, setResetting] = useState(false)
+  const [refreshingRates, setRefreshingRates] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const exchangeRates = useExchangeRates()
+
+  const handleRefreshRates = async () => {
+    setRefreshingRates(true)
+    try {
+      await exchangeRateService.fetchRates()
+      toast.success("汇率已更新")
+    } catch {
+      toast.error("汇率更新失败，请检查网络")
+    } finally {
+      setRefreshingRates(false)
+    }
+  }
 
   const handleExportJSON = async () => {
     try {
@@ -85,6 +102,42 @@ export default function SettingsPage() {
               </div>
               <span className="text-muted-foreground text-sm">&rarr;</span>
             </Link>
+          </CardContent>
+        </Card>
+
+        {/* Exchange rates */}
+        <Card>
+          <CardContent className="pt-6 space-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium">汇率（兑人民币）</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                disabled={refreshingRates}
+                onClick={handleRefreshRates}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingRates ? "animate-spin" : ""}`} />
+                {refreshingRates ? "更新中..." : "刷新"}
+              </Button>
+            </div>
+            {exchangeRates.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">暂无汇率数据，点击刷新获取</p>
+            ) : (
+              <div className="space-y-2">
+                {exchangeRates.map((r) => (
+                  <div key={r.currency} className="flex items-center justify-between py-1">
+                    <span className="text-sm text-muted-foreground">1 {r.currency}</span>
+                    <div className="text-right">
+                      <span className="text-sm tabular-nums">= ¥{r.rateToCNY.toFixed(4)}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {new Date(r.updatedAt).toLocaleDateString("zh-CN")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
