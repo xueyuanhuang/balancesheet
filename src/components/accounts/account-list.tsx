@@ -1,29 +1,37 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { ChevronDown, ChevronRight, Wallet } from "lucide-react"
 import { useAccounts } from "@/lib/hooks/use-accounts"
 import { useCategories } from "@/lib/hooks/use-categories"
 import { useRateMap } from "@/lib/hooks/use-exchange-rates"
+import { useCategoryTree, flattenTree } from "@/lib/hooks/use-category-tree"
+import { useAccountListDrag } from "@/lib/hooks/use-account-list-drag"
+import type { DragItemType } from "@/lib/hooks/use-account-list-drag"
 import { AccountCard } from "./account-card"
 import { AmountDisplay } from "@/components/shared/amount-display"
+import { DragOverlay } from "@/components/shared/drag-overlay"
+import { DropIndicator } from "@/components/categories/drop-indicator"
 import { EmptyState } from "@/components/shared/empty-state"
+import { categoryService } from "@/lib/services/category-service"
+import { accountService } from "@/lib/services/account-service"
 import { convertToCNY, convertFromCNY } from "@/lib/utils/currency"
 import { formatAmount } from "@/lib/utils/format"
 import { CURRENCIES } from "@/lib/utils/constants"
+import { toast } from "sonner"
 import type { Account, Category } from "@/types"
 import type { CurrencyDisplayMode } from "@/lib/hooks/use-currency-display"
 import { cn } from "@/lib/utils"
 
 interface CurrencyBreakdown {
-  [currency: string]: number // currency -> abs(CNY equivalent cents)
+  [currency: string]: number
 }
 
 interface CategoryAccountNode {
   category: Category
   accounts: Account[]
   children: CategoryAccountNode[]
-  totalBalance: number // CNY cents
+  totalBalance: number
   dominantCurrency: string
 }
 
@@ -36,7 +44,6 @@ interface AccountGroup {
 
 const CURRENCY_ORDER: string[] = CURRENCIES.map((c) => c.code)
 
-/** Compute dominant currency from a currency breakdown map */
 function pickDominantCurrency(breakdown: CurrencyBreakdown): string {
   let maxVal = -1
   let dominant = "CNY"
@@ -49,7 +56,6 @@ function pickDominantCurrency(breakdown: CurrencyBreakdown): string {
     }
   }
 
-  // Handle currencies not in CURRENCY_ORDER
   for (const [code, val] of Object.entries(breakdown)) {
     if (!CURRENCY_ORDER.includes(code) && val > maxVal) {
       maxVal = val
@@ -60,7 +66,6 @@ function pickDominantCurrency(breakdown: CurrencyBreakdown): string {
   return dominant
 }
 
-/** Collect currency breakdown from direct accounts and children recursively */
 function collectBreakdown(
   directAccounts: Account[],
   children: CategoryAccountNode[],
@@ -74,7 +79,6 @@ function collectBreakdown(
     breakdown[a.currency] = (breakdown[a.currency] ?? 0) + cnyCents
   }
 
-  // Merge children's breakdowns by re-collecting from their accounts recursively
   for (const child of children) {
     const childBreakdown = collectBreakdown(child.accounts, child.children, rateMap)
     for (const [code, val] of Object.entries(childBreakdown)) {
@@ -114,10 +118,10 @@ function buildCategoryAccountTree(
       }
     })
     .filter((node) => node.totalBalance !== 0 || node.accounts.length > 0 || node.children.length > 0)
-    .sort((a, b) => Math.abs(b.totalBalance) - Math.abs(a.totalBalance))
+    .sort((a, b) => a.category.sortOrder - b.category.sortOrder)
 }
 
-/** Group accounts by name for multi-currency display */
+/** Group accounts by name for multi-currency display, preserving sortOrder */
 function groupAccountsByName(accounts: Account[], rateMap: Record<string, number>): AccountGroup[] {
   const map = new Map<string, Account[]>()
   const order: string[] = []
@@ -128,25 +132,22 @@ function groupAccountsByName(accounts: Account[], rateMap: Record<string, number
     }
     map.get(acc.name)!.push(acc)
   }
-  return order
-    .map((name) => {
-      const accs = map.get(name)!
-      const breakdown: CurrencyBreakdown = {}
-      for (const a of accs) {
-        const cnyCents = Math.abs(convertToCNY(a.balance, a.currency, rateMap))
-        breakdown[a.currency] = (breakdown[a.currency] ?? 0) + cnyCents
-      }
-      return {
-        name,
-        accounts: accs,
-        totalCNY: accs.reduce((s, a) => s + convertToCNY(a.balance, a.currency, rateMap), 0),
-        dominantCurrency: pickDominantCurrency(breakdown),
-      }
-    })
-    .sort((a, b) => Math.abs(b.totalCNY) - Math.abs(a.totalCNY))
+  return order.map((name) => {
+    const accs = map.get(name)!
+    const breakdown: CurrencyBreakdown = {}
+    for (const a of accs) {
+      const cnyCents = Math.abs(convertToCNY(a.balance, a.currency, rateMap))
+      breakdown[a.currency] = (breakdown[a.currency] ?? 0) + cnyCents
+    }
+    return {
+      name,
+      accounts: accs,
+      totalCNY: accs.reduce((s, a) => s + convertToCNY(a.balance, a.currency, rateMap), 0),
+      dominantCurrency: pickDominantCurrency(breakdown),
+    }
+  })
 }
 
-/** Format amount with optional ≈ prefix for non-CNY display */
 function formatDisplayAmount(
   cnyCents: number,
   targetCurrency: string,
@@ -157,23 +158,59 @@ function formatDisplayAmount(
   }
   const converted = convertFromCNY(cnyCents, targetCurrency, rateMap)
   if (converted === null) {
-    // Fallback to CNY when rate is missing
     return formatAmount(cnyCents, "CNY")
   }
   return `≈${formatAmount(converted, targetCurrency)}`
 }
 
-/** Renders a group of same-name, multi-currency accounts */
+// ─── Drag-aware sub-components ──────────────────────────
+
+interface DragProps {
+  isDragging: boolean
+  dragItemId: string | null
+  dragItemType: DragItemType | null
+  dropTargetId: string | null
+  dropPosition: import("@/lib/hooks/use-account-list-drag").DropPosition | null
+  registerNode: (
+    id: string,
+    type: DragItemType,
+    parentId: string | null,
+    categoryType: "asset" | "liability",
+    depth: number,
+    el: HTMLElement | null
+  ) => void
+  onTouchStart: (
+    id: string,
+    type: DragItemType,
+    label: string,
+    badge: string | undefined,
+    categoryType: "asset" | "liability",
+    e: React.TouchEvent
+  ) => void
+  onMouseDown: (
+    id: string,
+    type: DragItemType,
+    label: string,
+    badge: string | undefined,
+    categoryType: "asset" | "liability",
+    e: React.MouseEvent
+  ) => void
+}
+
 function AccountGroupRow({
   group,
   depth,
   displayCurrency,
   rateMap,
+  categoryType,
+  drag,
 }: {
   group: AccountGroup
   depth: number
   displayCurrency: CurrencyDisplayMode
   rateMap: Record<string, number>
+  categoryType: "asset" | "liability"
+  drag: DragProps
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -185,7 +222,7 @@ function AccountGroupRow({
       <button
         className="flex w-full items-center justify-between py-1 rounded-lg hover:bg-accent/50 active:bg-accent text-sm"
         style={{ paddingLeft: `${depth * 16 + 16}px`, paddingRight: 16 }}
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => !drag.isDragging && setExpanded(!expanded)}
       >
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="truncate">{group.name}</span>
@@ -207,7 +244,21 @@ function AccountGroupRow({
       {expanded && (
         <div>
           {group.accounts.map((account) => (
-            <AccountCard key={account.id} account={account} depth={depth + 1} showCNYConversion={false} />
+            <AccountCard
+              key={account.id}
+              account={account}
+              depth={depth + 1}
+              showCNYConversion={false}
+              isDragging={drag.isDragging}
+              dragItemId={drag.dragItemId}
+              dragItemType={drag.dragItemType}
+              dropTargetId={drag.dropTargetId}
+              dropPosition={drag.dropPosition}
+              categoryType={categoryType}
+              registerNode={drag.registerNode}
+              onTouchStart={drag.onTouchStart}
+              onMouseDown={drag.onMouseDown}
+            />
           ))}
         </div>
       )}
@@ -220,13 +271,16 @@ function CategoryAccountTreeNode({
   depth = 0,
   rateMap,
   displayCurrency,
+  drag,
 }: {
   node: CategoryAccountNode
   depth?: number
   rateMap: Record<string, number>
   displayCurrency: CurrencyDisplayMode
+  drag: DragProps
 }) {
   const [expanded, setExpanded] = useState(false)
+  const nodeRef = useRef<HTMLDivElement>(null)
   const hasContent = node.children.length > 0 || node.accounts.length > 0
 
   const groups = groupAccountsByName(node.accounts, rateMap)
@@ -234,30 +288,78 @@ function CategoryAccountTreeNode({
   const targetCurrency = displayCurrency === "auto" ? node.dominantCurrency : displayCurrency
   const displayText = formatDisplayAmount(node.totalBalance, targetCurrency, rateMap)
 
+  const isBeingDragged = drag.dragItemId === node.category.id
+  const isDropTarget = drag.dropTargetId === node.category.id
+  const childCount = node.children.length
+
+  // Register this category for hit testing
+  useEffect(() => {
+    drag.registerNode(node.category.id, "category", node.category.parentId, node.category.type, depth, nodeRef.current)
+    return () => drag.registerNode(node.category.id, "category", node.category.parentId, node.category.type, depth, null)
+  }, [node.category.id, node.category.parentId, node.category.type, depth, drag])
+
   return (
     <div>
-      <button
+      {/* Drop-before indicator */}
+      {isDropTarget && drag.dropPosition === "drop-before" && drag.dragItemType === "category" && <DropIndicator />}
+
+      <div
+        ref={nodeRef}
         className={cn(
-          "flex w-full items-center gap-2 py-1 rounded-lg text-sm",
-          hasContent && "hover:bg-accent/50 active:bg-accent"
+          "rounded-lg transition-all",
+          isBeingDragged && "opacity-30",
+          isDropTarget && drag.dropPosition === "drop-into" && "ring-2 ring-primary bg-primary/5"
         )}
-        style={{ paddingLeft: `${depth * 16 + 16}px`, paddingRight: 16 }}
-        onClick={() => hasContent && setExpanded(!expanded)}
+        onTouchStart={(e) => {
+          drag.onTouchStart(
+            node.category.id,
+            "category",
+            node.category.name,
+            childCount > 0 ? `(+${childCount})` : undefined,
+            node.category.type,
+            e
+          )
+        }}
+        onMouseDown={(e) => {
+          drag.onMouseDown(
+            node.category.id,
+            "category",
+            node.category.name,
+            childCount > 0 ? `(+${childCount})` : undefined,
+            node.category.type,
+            e
+          )
+        }}
       >
-        <span className="flex-1 text-left font-medium truncate flex items-center gap-1">
-          {node.category.name}
-          {hasContent && (
-            expanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-            )
+        <button
+          className={cn(
+            "flex w-full items-center gap-2 py-1 rounded-lg text-sm",
+            hasContent && !drag.isDragging && "hover:bg-accent/50 active:bg-accent"
           )}
-        </span>
-        <span className="text-sm tabular-nums text-muted-foreground shrink-0">
-          {displayText}
-        </span>
-      </button>
+          style={{ paddingLeft: `${depth * 16 + 16}px`, paddingRight: 16 }}
+          onClick={() => {
+            if (drag.isDragging) return
+            if (hasContent) setExpanded(!expanded)
+          }}
+        >
+          <span className="flex-1 text-left font-medium truncate flex items-center gap-1">
+            {node.category.name}
+            {hasContent && (
+              expanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              )
+            )}
+          </span>
+          <span className="text-sm tabular-nums text-muted-foreground shrink-0">
+            {displayText}
+          </span>
+        </button>
+      </div>
+
+      {/* Drop-after indicator (before children) */}
+      {isDropTarget && drag.dropPosition === "drop-after" && !hasContent && drag.dragItemType === "category" && <DropIndicator />}
 
       {expanded && (
         <div>
@@ -268,17 +370,43 @@ function CategoryAccountTreeNode({
               depth={depth + 1}
               rateMap={rateMap}
               displayCurrency={displayCurrency}
+              drag={drag}
             />
           ))}
           {groups.map((group) =>
             group.accounts.length === 1 ? (
-              <AccountCard key={group.accounts[0].id} account={group.accounts[0]} depth={depth + 1} showCNYConversion={false} />
+              <AccountCard
+                key={group.accounts[0].id}
+                account={group.accounts[0]}
+                depth={depth + 1}
+                showCNYConversion={false}
+                isDragging={drag.isDragging}
+                dragItemId={drag.dragItemId}
+                dragItemType={drag.dragItemType}
+                dropTargetId={drag.dropTargetId}
+                dropPosition={drag.dropPosition}
+                categoryType={node.category.type}
+                registerNode={drag.registerNode}
+                onTouchStart={drag.onTouchStart}
+                onMouseDown={drag.onMouseDown}
+              />
             ) : (
-              <AccountGroupRow key={group.name} group={group} depth={depth + 1} displayCurrency={displayCurrency} rateMap={rateMap} />
+              <AccountGroupRow
+                key={group.name}
+                group={group}
+                depth={depth + 1}
+                displayCurrency={displayCurrency}
+                rateMap={rateMap}
+                categoryType={node.category.type}
+                drag={drag}
+              />
             )
           )}
         </div>
       )}
+
+      {/* Drop-after indicator (after expanded children) */}
+      {isDropTarget && drag.dropPosition === "drop-after" && hasContent && expanded && drag.dragItemType === "category" && <DropIndicator />}
     </div>
   )
 }
@@ -287,6 +415,58 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
   const accounts = useAccounts()
   const categories = useCategories()
   const rateMap = useRateMap()
+  const { assetTree, liabilityTree } = useCategoryTree(categories)
+
+  const allCategoryNodes = useMemo(
+    () => [...flattenTree(assetTree), ...flattenTree(liabilityTree)],
+    [assetTree, liabilityTree]
+  )
+  const allTreeNodes = useMemo(
+    () => [...assetTree, ...liabilityTree],
+    [assetTree, liabilityTree]
+  )
+
+  const handleMoveCategory = useCallback(async (
+    categoryId: string,
+    targetParentId: string | null,
+    sortIndex: number | null
+  ) => {
+    try {
+      await categoryService.moveCategory(categoryId, targetParentId, sortIndex)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "移动分类失败")
+    }
+  }, [])
+
+  const handleMoveAccount = useCallback(async (
+    accountId: string,
+    targetCategoryId: string,
+    sortIndex: number | null
+  ) => {
+    try {
+      await accountService.moveAccount(accountId, targetCategoryId, sortIndex)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "移动账户失败")
+    }
+  }, [])
+
+  const { state, handleTouchStart, handleMouseDown, registerNode, registerRootDropZone } = useAccountListDrag({
+    nodes: allTreeNodes,
+    allCategories: allCategoryNodes,
+    onMoveCategory: handleMoveCategory,
+    onMoveAccount: handleMoveAccount,
+  })
+
+  const drag: DragProps = {
+    isDragging: state.isDragging,
+    dragItemId: state.dragId,
+    dragItemType: state.dragType,
+    dropTargetId: state.dropTargetId,
+    dropPosition: state.dropPosition,
+    registerNode,
+    onTouchStart: handleTouchStart,
+    onMouseDown: handleMouseDown,
+  }
 
   const activeAccounts = accounts.filter((a) => !a.isArchived)
 
@@ -302,47 +482,72 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
     )
   }
 
-  const assetTree = buildCategoryAccountTree(categories, accounts, null, "asset", rateMap)
-  const liabilityTree = buildCategoryAccountTree(categories, accounts, null, "liability", rateMap)
+  const assetAccountTree = buildCategoryAccountTree(categories, accounts, null, "asset", rateMap)
+  const liabilityAccountTree = buildCategoryAccountTree(categories, accounts, null, "liability", rateMap)
 
-  const totalAssets = assetTree.reduce((s, n) => s + n.totalBalance, 0)
-  const totalLiabilities = liabilityTree.reduce((s, n) => s + n.totalBalance, 0)
+  const totalAssets = assetAccountTree.reduce((s, n) => s + n.totalBalance, 0)
+  const totalLiabilities = liabilityAccountTree.reduce((s, n) => s + n.totalBalance, 0)
 
   return (
     <div className="space-y-4">
-      {assetTree.length > 0 && (
+      {assetAccountTree.length > 0 && (
         <section>
           <div className="flex items-center justify-between px-4 py-2">
             <h2 className="text-sm font-semibold">资产</h2>
             <AmountDisplay cents={totalAssets} size="sm" className="text-emerald-600" />
           </div>
-          {assetTree.map((node) => (
+          {assetAccountTree.map((node) => (
             <CategoryAccountTreeNode
               key={node.category.id}
               node={node}
               depth={1}
               rateMap={rateMap}
               displayCurrency={displayCurrency}
+              drag={drag}
             />
           ))}
         </section>
       )}
-      {liabilityTree.length > 0 && (
+      {liabilityAccountTree.length > 0 && (
         <section>
           <div className="flex items-center justify-between px-4 py-2">
             <h2 className="text-sm font-semibold">负债</h2>
             <AmountDisplay cents={totalLiabilities} size="sm" className="text-red-500" />
           </div>
-          {liabilityTree.map((node) => (
+          {liabilityAccountTree.map((node) => (
             <CategoryAccountTreeNode
               key={node.category.id}
               node={node}
               depth={1}
               rateMap={rateMap}
               displayCurrency={displayCurrency}
+              drag={drag}
             />
           ))}
         </section>
+      )}
+
+      {/* Root drop zone — only for category drag */}
+      <div
+        ref={registerRootDropZone}
+        className={cn(
+          "mt-2 py-4 border-2 border-dashed rounded-lg text-center text-xs transition-all mx-4",
+          state.isDragging && state.dragType === "category"
+            ? "opacity-100 border-muted-foreground/40 text-muted-foreground"
+            : "opacity-0 h-0 py-0 mt-0 overflow-hidden border-transparent",
+          state.dropPosition === "drop-root" && "border-primary bg-primary/5 text-primary"
+        )}
+      >
+        拖拽到此处移为顶级分类
+      </div>
+
+      {/* Drag overlay */}
+      {state.isDragging && state.dragLabel && state.overlayPos && (
+        <DragOverlay
+          label={state.dragLabel}
+          badge={state.dragBadge}
+          position={state.overlayPos}
+        />
       )}
     </div>
   )

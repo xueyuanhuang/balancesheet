@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react"
 import { CategoryNode } from "./category-node"
-import { DragOverlay } from "./drag-overlay"
+import { DragOverlay } from "@/components/shared/drag-overlay"
 import { useCategoryDrag } from "@/lib/hooks/use-category-drag"
 import { flattenTree } from "@/lib/hooks/use-category-tree"
 import { categoryService } from "@/lib/services/category-service"
@@ -79,7 +79,11 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
 
       {/* Drag overlay portal */}
       {state.isDragging && state.dragNode && state.overlayPos && (
-        <DragOverlay node={state.dragNode} position={state.overlayPos} />
+        <DragOverlay
+          label={state.dragNode.name}
+          badge={state.dragNode.children.length > 0 ? `(+${state.dragNode.children.length})` : undefined}
+          position={state.overlayPos}
+        />
       )}
     </div>
   )

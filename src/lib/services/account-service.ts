@@ -104,6 +104,74 @@ export const accountService = {
     return { entryCount, balance: account?.balance ?? 0 }
   },
 
+  /** Move account to a new category and/or sort position */
+  async moveAccount(
+    accountId: string,
+    targetCategoryId: string,
+    sortIndex: number | null
+  ): Promise<void> {
+    await db.transaction("rw", [db.accounts, db.categories], async () => {
+      const account = await db.accounts.get(accountId)
+      if (!account) throw new Error("账户不存在")
+
+      const sourceCategory = await db.categories.get(account.categoryId)
+      const targetCategory = await db.categories.get(targetCategoryId)
+      if (!targetCategory) throw new Error("目标分类不存在")
+      if (sourceCategory && sourceCategory.type !== targetCategory.type) {
+        throw new Error("不能将账户移动到不同类型的分类")
+      }
+
+      // Get new siblings (excluding the account itself)
+      const newSiblings = await db.accounts
+        .where("categoryId").equals(targetCategoryId)
+        .sortBy("sortOrder")
+      const filtered = newSiblings.filter((a) => a.id !== accountId)
+
+      const effectiveIndex = sortIndex !== null
+        ? Math.min(sortIndex, filtered.length)
+        : filtered.length
+
+      // No-op detection
+      if (account.categoryId === targetCategoryId) {
+        const currentSiblings = await db.accounts
+          .where("categoryId").equals(targetCategoryId)
+          .sortBy("sortOrder")
+        const currentIndex = currentSiblings.findIndex((a) => a.id === accountId)
+        if (currentIndex === effectiveIndex || (effectiveIndex > currentIndex && effectiveIndex === currentIndex + 1)) {
+          return
+        }
+      }
+
+      // Re-sort old siblings if changing category
+      if (account.categoryId !== targetCategoryId) {
+        const oldSiblings = await db.accounts
+          .where("categoryId").equals(account.categoryId)
+          .sortBy("sortOrder")
+        const oldFiltered = oldSiblings.filter((a) => a.id !== accountId)
+        for (let i = 0; i < oldFiltered.length; i++) {
+          if (oldFiltered[i].sortOrder !== i) {
+            await db.accounts.update(oldFiltered[i].id, { sortOrder: i, updatedAt: Date.now() })
+          }
+        }
+      }
+
+      // Shift siblings at new position
+      for (let i = filtered.length - 1; i >= effectiveIndex; i--) {
+        await db.accounts.update(filtered[i].id, {
+          sortOrder: i + 1,
+          updatedAt: Date.now(),
+        })
+      }
+
+      // Update the moved account
+      await db.accounts.update(accountId, {
+        categoryId: targetCategoryId,
+        sortOrder: effectiveIndex,
+        updatedAt: Date.now(),
+      })
+    })
+  },
+
   /** Delete account — only allowed if no entries */
   async delete(id: string): Promise<void> {
     const entryCount = await db.entries.where("accountId").equals(id).count()

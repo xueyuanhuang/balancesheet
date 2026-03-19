@@ -1,16 +1,14 @@
 "use client"
 
 import { createPortal } from "react-dom"
-import type { CategoryTreeNode } from "@/types"
 
 interface DragOverlayProps {
-  node: CategoryTreeNode
+  label: string
+  badge?: string
   position: { x: number; y: number }
 }
 
-export function DragOverlay({ node, position }: DragOverlayProps) {
-  const childCount = node.children.length
-
+export function DragOverlay({ label, badge, position }: DragOverlayProps) {
   return createPortal(
     <div
       className="fixed z-50 pointer-events-none px-4 py-2.5 bg-background border rounded-lg shadow-xl"
@@ -22,9 +20,9 @@ export function DragOverlay({ node, position }: DragOverlayProps) {
       }}
     >
       <span className="text-sm font-medium">
-        {node.name}
-        {childCount > 0 && (
-          <span className="text-muted-foreground ml-1">(+{childCount})</span>
+        {label}
+        {badge && (
+          <span className="text-muted-foreground ml-1">{badge}</span>
         )}
       </span>
     </div>,
