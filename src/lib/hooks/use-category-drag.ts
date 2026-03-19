@@ -87,19 +87,19 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
   const dragIdRef = useRef<string | null>(null)
   const descendantIdsRef = useRef<Set<string>>(new Set())
   const dragNodeRef = useRef<CategoryTreeNode | null>(null)
-  const preventTouchMove = useRef<((e: TouchEvent) => void) | null>(null)
-  const preventContextMenu = useRef<((e: Event) => void) | null>(null)
 
-  // Use refs for drop target so handlePointerUp reads fresh values (no stale closure)
+  // Refs for drop target (read by handleEnd without stale closure)
   const dropTargetIdRef = useRef<string | null>(null)
   const dropPositionRef = useRef<DropPosition | null>(null)
 
-  // Keep refs for onMove and allCategories to avoid listener churn
+  // Stable refs for callbacks/data to avoid listener churn
   const onMoveRef = useRef(onMove)
   const allCategoriesRef = useRef(allCategories)
+  const nodesRef = useRef(nodes)
   useEffect(() => {
     onMoveRef.current = onMove
     allCategoriesRef.current = allCategories
+    nodesRef.current = nodes
   })
 
   const registerNode = useCallback((id: string, parentId: string | null, depth: number, el: HTMLElement | null) => {
@@ -124,6 +124,7 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
     }
   }, [])
 
+  // ─── Cancel ────────────────────────────────────────────
   const cancelDrag = useCallback(() => {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current)
@@ -138,19 +139,10 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
     dropTargetIdRef.current = null
     dropPositionRef.current = null
 
-    if (preventTouchMove.current) {
-      document.removeEventListener("touchmove", preventTouchMove.current)
-      preventTouchMove.current = null
-    }
-    if (preventContextMenu.current) {
-      document.removeEventListener("contextmenu", preventContextMenu.current)
-      preventContextMenu.current = null
-    }
-
     setState(IDLE_STATE)
   }, [])
 
-  // Update both state and refs for drop target
+  // ─── Drop target computation ──────────────────────────
   const setDropTarget = useCallback((targetId: string | null, position: DropPosition | null, pos: { x: number; y: number }) => {
     dropTargetIdRef.current = targetId
     dropPositionRef.current = position
@@ -203,7 +195,7 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
         }
       })
 
-      // Validate drop-into: depth limit check
+      // Validate drop-into: depth limit
       if (bestId && bestPosition === "drop-into") {
         const targetMeta = registeredNodes.current.get(bestId)
         const dragNode = dragNodeRef.current
@@ -221,6 +213,7 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
     [setDropTarget]
   )
 
+  // ─── Auto-scroll ──────────────────────────────────────
   const autoScroll = useCallback((clientY: number) => {
     cancelAnimationFrame(scrollRafId.current)
     const viewH = window.innerHeight
@@ -242,9 +235,132 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
     }
   }, [refreshRects])
 
-  // All global event handlers use refs to avoid stale closures → stable callbacks → no listener churn
-  const handlePointerMove = useCallback(
-    (e: PointerEvent) => {
+  // ─── Enter dragging mode ──────────────────────────────
+  const enterDragging = useCallback((categoryId: string, node: CategoryTreeNode | null, x: number, y: number) => {
+    phase.current = "dragging"
+
+    if (navigator.vibrate) {
+      navigator.vibrate(50)
+    }
+
+    refreshRects()
+
+    setState({
+      dragId: categoryId,
+      dropTargetId: null,
+      dropPosition: null,
+      isDragging: true,
+      overlayPos: { x, y },
+      dragNode: node,
+    })
+  }, [refreshRects])
+
+  // ─── Execute drop ─────────────────────────────────────
+  const executeDrop = useCallback(() => {
+    if (phase.current !== "dragging") {
+      cancelDrag()
+      return
+    }
+
+    const dragId = dragIdRef.current
+    const dropTargetId = dropTargetIdRef.current
+    const dropPosition = dropPositionRef.current
+
+    if (dragId && dropPosition) {
+      if (dropPosition === "drop-root") {
+        onMoveRef.current(dragId, null, null)
+      } else if (dropTargetId) {
+        const targetMeta = registeredNodes.current.get(dropTargetId)
+        if (targetMeta) {
+          if (dropPosition === "drop-into") {
+            onMoveRef.current(dragId, dropTargetId, null)
+          } else {
+            const targetParentId = targetMeta.parentId
+            const siblings = allCategoriesRef.current
+              .filter((c) => c.parentId === targetParentId && c.id !== dragId)
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+            const targetIdx = siblings.findIndex((c) => c.id === dropTargetId)
+            const sortIndex = dropPosition === "drop-before" ? targetIdx : targetIdx + 1
+            onMoveRef.current(dragId, targetParentId, sortIndex)
+          }
+        }
+      }
+    }
+
+    cancelDrag()
+  }, [cancelDrag])
+
+  // ─── Touch event handlers (primary for mobile) ────────
+  // These use refs and are stable — no dependency on render state.
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0]
+      if (!touch) return
+
+      if (phase.current === "pressing") {
+        const dx = touch.clientX - startPos.current.x
+        const dy = touch.clientY - startPos.current.y
+        if (Math.sqrt(dx * dx + dy * dy) > MOVE_TOLERANCE) {
+          cancelDrag()
+          // Don't preventDefault — let browser scroll normally
+        }
+        return
+      }
+
+      if (phase.current === "dragging") {
+        // Prevent browser scroll while dragging
+        e.preventDefault()
+        cancelAnimationFrame(rafId.current)
+        rafId.current = requestAnimationFrame(() => {
+          computeDropTarget(touch.clientX, touch.clientY)
+          autoScroll(touch.clientY)
+        })
+      }
+    }
+
+    const handleTouchEnd = () => {
+      if (phase.current === "dragging") {
+        executeDrop()
+      } else {
+        cancelDrag()
+      }
+    }
+
+    const handleTouchCancel = () => {
+      cancelDrag()
+    }
+
+    const handleContextMenu = (e: Event) => {
+      // Suppress context menu during pressing/dragging
+      if (phase.current !== "idle") {
+        e.preventDefault()
+      }
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        cancelDrag()
+      }
+    }
+
+    document.addEventListener("touchmove", handleTouchMove, { passive: false })
+    document.addEventListener("touchend", handleTouchEnd)
+    document.addEventListener("touchcancel", handleTouchCancel)
+    document.addEventListener("contextmenu", handleContextMenu)
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener("touchmove", handleTouchMove)
+      document.removeEventListener("touchend", handleTouchEnd)
+      document.removeEventListener("touchcancel", handleTouchCancel)
+      document.removeEventListener("contextmenu", handleContextMenu)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [cancelDrag, computeDropTarget, autoScroll, executeDrop])
+
+  // ─── Mouse event handlers (desktop fallback) ──────────
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
       if (phase.current === "pressing") {
         const dx = e.clientX - startPos.current.x
         const dy = e.clientY - startPos.current.y
@@ -261,77 +377,53 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
           autoScroll(e.clientY)
         })
       }
-    },
-    [cancelDrag, computeDropTarget, autoScroll]
-  )
+    }
 
-  // Read from refs → no dependency on state → stable callback
-  const handlePointerUp = useCallback(() => {
-    if (phase.current === "dragging") {
-      const dragId = dragIdRef.current
-      const dropTargetId = dropTargetIdRef.current
-      const dropPosition = dropPositionRef.current
-
-      if (dragId && dropPosition) {
-        if (dropPosition === "drop-root") {
-          onMoveRef.current(dragId, null, null)
-        } else if (dropTargetId) {
-          const targetMeta = registeredNodes.current.get(dropTargetId)
-          if (targetMeta) {
-            if (dropPosition === "drop-into") {
-              onMoveRef.current(dragId, dropTargetId, null)
-            } else {
-              const targetParentId = targetMeta.parentId
-              const siblings = allCategoriesRef.current
-                .filter((c) => c.parentId === targetParentId && c.id !== dragId)
-                .sort((a, b) => a.sortOrder - b.sortOrder)
-              const targetIdx = siblings.findIndex((c) => c.id === dropTargetId)
-              const sortIndex = dropPosition === "drop-before" ? targetIdx : targetIdx + 1
-              onMoveRef.current(dragId, targetParentId, sortIndex)
-            }
-          }
-        }
+    const handleMouseUp = () => {
+      if (phase.current === "dragging") {
+        executeDrop()
+      } else {
+        cancelDrag()
       }
     }
-    cancelDrag()
-  }, [cancelDrag])
 
-  const handlePointerCancel = useCallback(() => {
-    cancelDrag()
-  }, [cancelDrag])
-
-  const handleScroll = useCallback(() => {
-    if (phase.current === "pressing") {
-      cancelDrag()
-    }
-  }, [cancelDrag])
-
-  const handleVisibilityChange = useCallback(() => {
-    if (document.hidden) {
-      cancelDrag()
-    }
-  }, [cancelDrag])
-
-  // Stable listeners — no churn because dependencies are all stable (only use refs)
-  useEffect(() => {
-    document.addEventListener("pointermove", handlePointerMove)
-    document.addEventListener("pointerup", handlePointerUp)
-    document.addEventListener("pointercancel", handlePointerCancel)
-    window.addEventListener("scroll", handleScroll, true)
-    document.addEventListener("visibilitychange", handleVisibilityChange)
+    document.addEventListener("mousemove", handleMouseMove)
+    document.addEventListener("mouseup", handleMouseUp)
 
     return () => {
-      document.removeEventListener("pointermove", handlePointerMove)
-      document.removeEventListener("pointerup", handlePointerUp)
-      document.removeEventListener("pointercancel", handlePointerCancel)
-      window.removeEventListener("scroll", handleScroll, true)
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-      cancelDrag()
+      document.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("mouseup", handleMouseUp)
     }
-  }, [handlePointerMove, handlePointerUp, handlePointerCancel, handleScroll, handleVisibilityChange, cancelDrag])
+  }, [cancelDrag, computeDropTarget, autoScroll, executeDrop])
 
-  const handlePointerDown = useCallback(
-    (categoryId: string, e: React.PointerEvent) => {
+  // ─── Start long press (called from component) ─────────
+  const handleTouchStart = useCallback(
+    (categoryId: string, e: React.TouchEvent) => {
+      if (phase.current !== "idle") return
+      const touch = e.touches[0]
+      if (!touch) return
+
+      phase.current = "pressing"
+      startPos.current = { x: touch.clientX, y: touch.clientY }
+      dragIdRef.current = categoryId
+
+      const node = findNodeById(nodesRef.current, categoryId)
+      dragNodeRef.current = node
+
+      if (node) {
+        descendantIdsRef.current = getDescendantIds(node)
+      }
+
+      pressTimer.current = setTimeout(() => {
+        if (phase.current !== "pressing") return
+        enterDragging(categoryId, node, startPos.current.x, startPos.current.y)
+      }, LONG_PRESS_MS)
+    },
+    [enterDragging]
+  )
+
+  const handleMouseDown = useCallback(
+    (categoryId: string, e: React.MouseEvent) => {
       if (phase.current !== "idle") return
       if (e.button !== 0) return
 
@@ -339,54 +431,25 @@ export function useCategoryDrag({ nodes, allCategories, onMove }: UseCategoryDra
       startPos.current = { x: e.clientX, y: e.clientY }
       dragIdRef.current = categoryId
 
-      const node = findNodeById(nodes, categoryId)
+      const node = findNodeById(nodesRef.current, categoryId)
       dragNodeRef.current = node
 
       if (node) {
         descendantIdsRef.current = getDescendantIds(node)
       }
 
-      // Suppress context menu during long press
-      const ctxHandler = (ev: Event) => {
-        ev.preventDefault()
-      }
-      document.addEventListener("contextmenu", ctxHandler, { once: false })
-      preventContextMenu.current = ctxHandler
-
       pressTimer.current = setTimeout(() => {
         if (phase.current !== "pressing") return
-        phase.current = "dragging"
-
-        // Haptic feedback
-        if (navigator.vibrate) {
-          navigator.vibrate(50)
-        }
-
-        refreshRects()
-
-        // Prevent browser scroll during drag
-        const touchHandler = (ev: TouchEvent) => {
-          ev.preventDefault()
-        }
-        document.addEventListener("touchmove", touchHandler, { passive: false })
-        preventTouchMove.current = touchHandler
-
-        setState({
-          dragId: categoryId,
-          dropTargetId: null,
-          dropPosition: null,
-          isDragging: true,
-          overlayPos: { x: startPos.current.x, y: startPos.current.y },
-          dragNode: node,
-        })
+        enterDragging(categoryId, node, startPos.current.x, startPos.current.y)
       }, LONG_PRESS_MS)
     },
-    [nodes, refreshRects]
+    [enterDragging]
   )
 
   return {
     state,
-    handlePointerDown,
+    handleTouchStart,
+    handleMouseDown,
     registerNode,
     registerRootDropZone,
   }

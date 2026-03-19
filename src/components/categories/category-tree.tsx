@@ -31,7 +31,7 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
     }
   }, [])
 
-  const { state, handlePointerDown, registerNode, registerRootDropZone } = useCategoryDrag({
+  const { state, handleTouchStart, handleMouseDown, registerNode, registerRootDropZone } = useCategoryDrag({
     nodes,
     allCategories,
     onMove: handleMove,
@@ -58,7 +58,8 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
           dropTargetId={state.dropTargetId}
           dropPosition={state.dropPosition}
           registerNode={registerNode}
-          onPointerDown={handlePointerDown}
+          onTouchStart={handleTouchStart}
+          onMouseDown={handleMouseDown}
         />
       ))}
 

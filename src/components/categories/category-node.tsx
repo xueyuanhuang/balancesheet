@@ -15,12 +15,13 @@ interface CategoryNodeProps {
   onArchive?: (id: string) => void
   onDelete?: (id: string) => void
   // DnD props
-  isDragging?: boolean // global drag in progress
+  isDragging?: boolean
   dragId?: string | null
   dropTargetId?: string | null
   dropPosition?: DropPosition | null
   registerNode?: (id: string, parentId: string | null, depth: number, el: HTMLElement | null) => void
-  onPointerDown?: (categoryId: string, e: React.PointerEvent) => void
+  onTouchStart?: (categoryId: string, e: React.TouchEvent) => void
+  onMouseDown?: (categoryId: string, e: React.MouseEvent) => void
 }
 
 export function CategoryNode({
@@ -33,7 +34,8 @@ export function CategoryNode({
   dropTargetId,
   dropPosition,
   registerNode,
-  onPointerDown,
+  onTouchStart,
+  onMouseDown,
 }: CategoryNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [showActions, setShowActions] = useState(false)
@@ -71,13 +73,14 @@ export function CategoryNode({
         style={{
           paddingLeft: `${depth * 20 + 12}px`,
         }}
-        onPointerDown={(e) => {
-          if (onPointerDown) {
-            onPointerDown(node.id, e)
-          }
+        onTouchStart={(e) => {
+          if (onTouchStart) onTouchStart(node.id, e)
+        }}
+        onMouseDown={(e) => {
+          if (onMouseDown) onMouseDown(node.id, e)
         }}
       >
-        {/* Name + Expand/Collapse arrow (arrow right after name) */}
+        {/* Name + Expand/Collapse arrow */}
         <button
           className="flex-1 text-left text-sm min-h-[44px] flex items-center gap-1"
           onClick={() => {
@@ -101,7 +104,8 @@ export function CategoryNode({
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
-            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={() => setShowActions(!showActions)}
           >
             <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
@@ -109,7 +113,7 @@ export function CategoryNode({
         )}
       </div>
 
-      {/* Action bar — shown on tap */}
+      {/* Action bar */}
       {effectiveShowActions && (
         <div
           className={cn(
@@ -178,13 +182,14 @@ export function CategoryNode({
               dropTargetId={dropTargetId}
               dropPosition={dropPosition}
               registerNode={registerNode}
-              onPointerDown={onPointerDown}
+              onTouchStart={onTouchStart}
+              onMouseDown={onMouseDown}
             />
           ))}
         </div>
       )}
 
-      {/* Drop-after indicator (after children if expanded) */}
+      {/* Drop-after indicator (after expanded children) */}
       {isDropTarget && dropPosition === "drop-after" && hasChildren && expanded && <DropIndicator />}
     </div>
   )
