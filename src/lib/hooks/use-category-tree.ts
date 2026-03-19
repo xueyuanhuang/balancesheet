@@ -9,7 +9,7 @@ function buildTree(
 ): CategoryTreeNode[] {
   return categories
     .filter((c) => c.parentId === parentId)
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((c) => ({
       ...c,
       children: buildTree(categories, c.id),

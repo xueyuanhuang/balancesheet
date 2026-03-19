@@ -1,37 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { ChevronRight, ChevronDown, Archive, ArchiveRestore, Pencil, Trash2, MoreHorizontal, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { DropIndicator } from "./drop-indicator"
 import type { CategoryTreeNode } from "@/types"
+import type { DropPosition } from "@/lib/hooks/use-category-drag"
 
 interface CategoryNodeProps {
   node: CategoryTreeNode
   depth?: number
   onArchive?: (id: string) => void
   onDelete?: (id: string) => void
+  // DnD props
+  isDragging?: boolean // global drag in progress
+  dragId?: string | null
+  dropTargetId?: string | null
+  dropPosition?: DropPosition | null
+  registerNode?: (id: string, parentId: string | null, depth: number, el: HTMLElement | null) => void
+  onPointerDown?: (categoryId: string, e: React.PointerEvent) => void
 }
 
-export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryNodeProps) {
+export function CategoryNode({
+  node,
+  depth = 0,
+  onArchive,
+  onDelete,
+  isDragging = false,
+  dragId,
+  dropTargetId,
+  dropPosition,
+  registerNode,
+  onPointerDown,
+}: CategoryNodeProps) {
   const [expanded, setExpanded] = useState(false)
   const [showActions, setShowActions] = useState(false)
+  const nodeRef = useRef<HTMLDivElement>(null)
   const hasChildren = node.children.length > 0
+
+  const isBeingDragged = dragId === node.id
+  const isDropTarget = dropTargetId === node.id
+
+  // Register DOM ref for hit testing
+  useEffect(() => {
+    if (registerNode) {
+      registerNode(node.id, node.parentId, depth, nodeRef.current)
+      return () => registerNode(node.id, node.parentId, depth, null)
+    }
+  }, [node.id, node.parentId, depth, registerNode])
+
+  // Hide action bar during any drag
+  const effectiveShowActions = showActions && !isDragging
 
   return (
     <div>
+      {/* Drop-before indicator */}
+      {isDropTarget && dropPosition === "drop-before" && <DropIndicator />}
+
       <div
+        ref={nodeRef}
         className={cn(
-          "flex items-center gap-2 py-2.5 px-3 rounded-lg active:bg-accent",
-          node.isArchived && "opacity-50"
+          "flex items-center gap-2 py-2.5 px-3 rounded-lg transition-all",
+          !isDragging && "active:bg-accent",
+          node.isArchived && "opacity-50",
+          isBeingDragged && "opacity-30",
+          isDropTarget && dropPosition === "drop-into" && "ring-2 ring-primary bg-primary/5"
         )}
-        style={{ paddingLeft: `${depth * 20 + 12}px` }}
+        style={{
+          paddingLeft: `${depth * 20 + 12}px`,
+        }}
+        onPointerDown={(e) => {
+          if (onPointerDown) {
+            onPointerDown(node.id, e)
+          }
+        }}
       >
         {/* Name + Expand/Collapse arrow (arrow right after name) */}
         <button
           className="flex-1 text-left text-sm min-h-[44px] flex items-center gap-1"
-          onClick={() => hasChildren ? setExpanded(!expanded) : setShowActions(!showActions)}
+          onClick={() => {
+            if (isDragging) return
+            if (hasChildren) { setExpanded(!expanded) } else { setShowActions(!showActions) }
+          }}
         >
           <span className="truncate">{node.name}</span>
           {hasChildren && (
@@ -44,18 +96,21 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
         </button>
 
         {/* Toggle actions button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={() => setShowActions(!showActions)}
-        >
-          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-        </Button>
+        {!isDragging && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setShowActions(!showActions)}
+          >
+            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        )}
       </div>
 
       {/* Action bar — shown on tap */}
-      {showActions && (
+      {effectiveShowActions && (
         <div
           className={cn(
             "py-1 px-3 bg-muted/50 rounded-lg mx-2 mb-1",
@@ -105,6 +160,9 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
         </div>
       )}
 
+      {/* Drop-after indicator */}
+      {isDropTarget && dropPosition === "drop-after" && !hasChildren && <DropIndicator />}
+
       {/* Children */}
       {hasChildren && expanded && (
         <div>
@@ -115,10 +173,19 @@ export function CategoryNode({ node, depth = 0, onArchive, onDelete }: CategoryN
               depth={depth + 1}
               onArchive={onArchive}
               onDelete={onDelete}
+              isDragging={isDragging}
+              dragId={dragId}
+              dropTargetId={dropTargetId}
+              dropPosition={dropPosition}
+              registerNode={registerNode}
+              onPointerDown={onPointerDown}
             />
           ))}
         </div>
       )}
+
+      {/* Drop-after indicator (after children if expanded) */}
+      {isDropTarget && dropPosition === "drop-after" && hasChildren && expanded && <DropIndicator />}
     </div>
   )
 }

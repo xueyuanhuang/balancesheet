@@ -191,6 +191,111 @@ export const categoryService = {
     return { canDelete: true, hasChildren: children > 0 }
   },
 
+  /** Get max depth of the subtree rooted at id (leaf=1, with children=1+max(child depths)) */
+  async _getSubtreeMaxDepth(id: string): Promise<number> {
+    const children = await db.categories.where("parentId").equals(id).toArray()
+    if (children.length === 0) return 1
+    let max = 0
+    for (const child of children) {
+      const d = await this._getSubtreeMaxDepth(child.id)
+      if (d > max) max = d
+    }
+    return 1 + max
+  },
+
+  /** Move a category to a new parent and/or sort position */
+  async moveCategory(
+    categoryId: string,
+    targetParentId: string | null,
+    sortIndex: number | null
+  ): Promise<void> {
+    await db.transaction("rw", [db.categories], async () => {
+      const category = await db.categories.get(categoryId)
+      if (!category) throw new Error("分类不存在")
+
+      // Determine effective target parent
+      const newParentId = targetParentId
+
+      // Circular reference check
+      if (newParentId !== null) {
+        if (newParentId === categoryId) {
+          throw new Error("不能将分类设为自己的子分类")
+        }
+        // Walk up from target to root, ensure we don't hit categoryId
+        let current: string | null = newParentId
+        while (current) {
+          if (current === categoryId) {
+            throw new Error("不能形成循环的父子关系")
+          }
+          const parent: Category | undefined = await db.categories.get(current)
+          current = parent?.parentId ?? null
+        }
+      }
+
+      // Depth check: target depth + subtree max depth <= 3
+      if (newParentId !== null) {
+        const targetDepth = await this._getCategoryDepth(newParentId)
+        const subtreeMaxDepth = await this._getSubtreeMaxDepth(categoryId)
+        if (targetDepth + subtreeMaxDepth > 3) {
+          throw new Error("分类最多支持三级层级")
+        }
+      } else {
+        // Moving to root: subtree depth must be <= 3
+        const subtreeMaxDepth = await this._getSubtreeMaxDepth(categoryId)
+        if (subtreeMaxDepth > 3) {
+          throw new Error("分类最多支持三级层级")
+        }
+      }
+
+      // Get new siblings (excluding the category itself)
+      const newSiblings = await db.categories
+        .filter((c) => c.parentId === newParentId && c.type === category.type && c.id !== categoryId)
+        .sortBy("sortOrder")
+
+      // Determine effective sort index
+      const effectiveIndex = sortIndex !== null ? Math.min(sortIndex, newSiblings.length) : newSiblings.length
+
+      // No-op detection: same parent and same position
+      if (category.parentId === newParentId) {
+        // Check if position is actually changing
+        const currentSiblings = await db.categories
+          .filter((c) => c.parentId === newParentId && c.type === category.type)
+          .sortBy("sortOrder")
+        const currentIndex = currentSiblings.findIndex((c) => c.id === categoryId)
+        if (currentIndex === effectiveIndex || (effectiveIndex > currentIndex && effectiveIndex === currentIndex + 1)) {
+          return // no-op
+        }
+      }
+
+      // If parent is changing, re-sort old siblings to fill gap
+      if (category.parentId !== newParentId) {
+        const oldSiblings = await db.categories
+          .filter((c) => c.parentId === category.parentId && c.type === category.type && c.id !== categoryId)
+          .sortBy("sortOrder")
+        for (let i = 0; i < oldSiblings.length; i++) {
+          if (oldSiblings[i].sortOrder !== i) {
+            await db.categories.update(oldSiblings[i].id, { sortOrder: i, updatedAt: Date.now() })
+          }
+        }
+      }
+
+      // Insert into new position: shift siblings at and after effectiveIndex
+      for (let i = newSiblings.length - 1; i >= effectiveIndex; i--) {
+        await db.categories.update(newSiblings[i].id, {
+          sortOrder: i + 1,
+          updatedAt: Date.now(),
+        })
+      }
+
+      // Update the moved category
+      await db.categories.update(categoryId, {
+        parentId: newParentId,
+        sortOrder: effectiveIndex,
+        updatedAt: Date.now(),
+      })
+    })
+  },
+
   /** Delete a category and all its descendants (cascade) */
   async delete(id: string): Promise<void> {
     const check = await this.canDelete(id)

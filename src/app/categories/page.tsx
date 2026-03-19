@@ -110,6 +110,9 @@ export default function CategoriesPage() {
             <TabsTrigger value="asset" className="flex-1">资产</TabsTrigger>
             <TabsTrigger value="liability" className="flex-1">负债</TabsTrigger>
           </TabsList>
+          <p className="text-xs text-muted-foreground mt-3 px-1">
+            长按分类可拖拽排序，拖入其他分类可设为子分类
+          </p>
           <TabsContent value="asset" className="mt-4">
             <CategoryTree
               nodes={assetTree.filter((n) => !n.isArchived)}
