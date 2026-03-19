@@ -124,8 +124,16 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
     return cat.name
   }
 
+  function sortByUsage(nodes: CategoryTreeNode[]): CategoryTreeNode[] {
+    return [...nodes].sort((a, b) => {
+      const countDiff = (b.usageCount ?? 0) - (a.usageCount ?? 0)
+      if (countDiff !== 0) return countDiff
+      return a.name.localeCompare(b.name)
+    })
+  }
+
   function renderPickerNodes(nodes: CategoryTreeNode[], depth: number, typeLabel?: string): React.ReactNode {
-    const activeNodes = nodes.filter((n) => !n.isArchived)
+    const activeNodes = sortByUsage(nodes.filter((n) => !n.isArchived))
     if (activeNodes.length === 0) return null
     return (
       <>
