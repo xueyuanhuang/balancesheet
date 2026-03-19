@@ -76,6 +76,16 @@ export function NetWorthChart() {
   const snapshots = useNetWorthSnapshots(startDate)
   const xAxisFormatter = useMemo(() => getXAxisFormat(range.days), [range.days])
 
+  const yDomain = useMemo(() => {
+    if (snapshots.length < 2) return undefined
+    const values = snapshots.map((s) => s.netWorth)
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    const range = max - min
+    const padding = range > 0 ? range * 0.15 : Math.abs(max) * 0.05 || 10000
+    return [Math.floor(min - padding), Math.ceil(max + padding)] as [number, number]
+  }, [snapshots])
+
   if (snapshots.length === 0) {
     return (
       <Card>
@@ -155,6 +165,7 @@ export function NetWorthChart() {
               tickMargin={4}
               tickFormatter={formatYAxis}
               width={48}
+              domain={yDomain}
             />
             <ChartTooltip
               content={
