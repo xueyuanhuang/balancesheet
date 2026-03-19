@@ -5,20 +5,25 @@ import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/layout/page-header"
 import { NetWorthCard } from "@/components/dashboard/net-worth-card"
+import { NetWorthChart } from "@/components/dashboard/net-worth-chart"
 import { AssetSummary } from "@/components/dashboard/asset-summary"
 import { LiabilitySummary } from "@/components/dashboard/liability-summary"
 import { useBalanceSheet } from "@/lib/hooks/use-balance-sheet"
 import { useAccounts } from "@/lib/hooks/use-accounts"
+import { useRecordSnapshot } from "@/lib/hooks/use-record-snapshot"
 
 export default function DashboardPage() {
   const { assetTree, liabilityTree, totalAssets, totalLiabilities, netWorth } = useBalanceSheet()
   const accounts = useAccounts()
   const hasAccounts = accounts.length > 0
 
+  useRecordSnapshot({ netWorth, totalAssets, totalLiabilities, hasAccounts })
+
   return (
     <div>
       <PageHeader title="总览" />
       <div className="p-4 space-y-4">
+        {hasAccounts && <NetWorthChart />}
         <NetWorthCard
           netWorth={netWorth}
           totalAssets={totalAssets}

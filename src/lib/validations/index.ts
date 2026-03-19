@@ -43,6 +43,14 @@ export const exchangeRateSchema = z.object({
   updatedAt: z.number(),
 })
 
+export const netWorthSnapshotSchema = z.object({
+  date: z.string(),
+  netWorth: z.number(),
+  totalAssets: z.number(),
+  totalLiabilities: z.number(),
+  createdAt: z.number(),
+})
+
 export const backupSchema = z.object({
   version: z.number(),
   exportedAt: z.number(),
@@ -73,6 +81,7 @@ export const backupSchema = z.object({
   operations: z.array(operationSchema),
   entries: z.array(entrySchema),
   exchangeRates: z.array(exchangeRateSchema).default([]),
+  netWorthSnapshots: z.array(netWorthSnapshotSchema).default([]),
 })
 
 export type CategoryFormData = z.infer<typeof categorySchema>

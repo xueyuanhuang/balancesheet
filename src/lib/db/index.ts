@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie"
-import type { Category, Account, Operation, Entry, ExchangeRate } from "@/types"
+import type { Category, Account, Operation, Entry, ExchangeRate, NetWorthSnapshot } from "@/types"
 
 const db = new Dexie("BalanceSheetDB") as Dexie & {
   categories: EntityTable<Category, "id">
@@ -7,6 +7,7 @@ const db = new Dexie("BalanceSheetDB") as Dexie & {
   operations: EntityTable<Operation, "id">
   entries: EntityTable<Entry, "id">
   exchangeRates: EntityTable<ExchangeRate, "currency">
+  netWorthSnapshots: EntityTable<NetWorthSnapshot, "date">
 }
 
 db.version(1).stores({
@@ -119,6 +120,16 @@ db.version(11).stores({
   operations: "id, kind, occurredAt, createdAt",
   entries: "id, operationId, accountId",
   exchangeRates: "currency",
+})
+
+// v12: Add net worth snapshots table
+db.version(12).stores({
+  categories: "id, type, parentId, sortOrder, isArchived",
+  accounts: "id, categoryId, isArchived, sortOrder",
+  operations: "id, kind, occurredAt, createdAt",
+  entries: "id, operationId, accountId",
+  exchangeRates: "currency",
+  netWorthSnapshots: "date",
 })
 
 export { db }

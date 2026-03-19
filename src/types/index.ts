@@ -70,6 +70,15 @@ export interface CategoryTreeNode extends Category {
   totalBalance: number // sum of all accounts under this category tree, cents (converted to CNY)
 }
 
+// Net worth snapshot (recorded when user opens dashboard)
+export interface NetWorthSnapshot {
+  date: string        // "YYYY-MM-DD" local date, primary key
+  netWorth: number    // CNY cents
+  totalAssets: number
+  totalLiabilities: number
+  createdAt: number
+}
+
 // Balance sheet summary
 export interface BalanceSheetData {
   assetTree: CategoryTreeNode[]

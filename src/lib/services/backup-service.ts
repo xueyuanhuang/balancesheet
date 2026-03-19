@@ -6,22 +6,24 @@ import { formatDate, formatAmount } from "@/lib/utils/format"
 export const backupService = {
   /** Export all data as JSON */
   async exportJSON(): Promise<void> {
-    const [categories, accounts, operations, entries, exchangeRates] = await Promise.all([
+    const [categories, accounts, operations, entries, exchangeRates, netWorthSnapshots] = await Promise.all([
       db.categories.toArray(),
       db.accounts.toArray(),
       db.operations.toArray(),
       db.entries.toArray(),
       db.exchangeRates.toArray(),
+      db.netWorthSnapshots.toArray(),
     ])
 
     const data = {
-      version: 3,
+      version: 4,
       exportedAt: Date.now(),
       categories,
       accounts,
       operations,
       entries,
       exchangeRates,
+      netWorthSnapshots,
     }
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
@@ -113,13 +115,14 @@ export const backupService = {
     // Clear existing data and import
     await db.transaction(
       "rw",
-      [db.categories, db.accounts, db.operations, db.entries, db.exchangeRates],
+      [db.categories, db.accounts, db.operations, db.entries, db.exchangeRates, db.netWorthSnapshots],
       async () => {
         await db.entries.clear()
         await db.operations.clear()
         await db.accounts.clear()
         await db.categories.clear()
         await db.exchangeRates.clear()
+        await db.netWorthSnapshots.clear()
 
         await db.categories.bulkAdd(data.categories)
         await db.accounts.bulkAdd(data.accounts)
@@ -127,6 +130,9 @@ export const backupService = {
         await db.entries.bulkAdd(data.entries)
         if (data.exchangeRates.length > 0) {
           await db.exchangeRates.bulkAdd(data.exchangeRates)
+        }
+        if (data.netWorthSnapshots?.length) {
+          await db.netWorthSnapshots.bulkAdd(data.netWorthSnapshots)
         }
       }
     )
