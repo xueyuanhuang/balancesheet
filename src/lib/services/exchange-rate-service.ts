@@ -37,19 +37,21 @@ export const exchangeRateService = {
 
   /** Fetch latest rates from public API and store them */
   async fetchRates(): Promise<void> {
-    const res = await fetch(
-      "https://api.exchangerate-api.com/v4/latest/CNY"
-    )
+    // Use USD as base — this API's USD-based data is accurate.
+    // Cross rates: rateToCNY(X) = rates.CNY / rates.X
+    const res = await fetch("https://api.exchangerate-api.com/v4/latest/USD")
     if (!res.ok) throw new Error("Failed to fetch exchange rates")
     const data = await res.json()
     const rates: Record<string, number> = data.rates
+    const cnyRate = rates["CNY"] // how many CNY per 1 USD (real-time)
+    if (!cnyRate || cnyRate <= 0) throw new Error("Invalid CNY rate from API")
     const now = Date.now()
 
     for (const currency of FX_CURRENCIES) {
-      const rateFromCNY = rates[currency]
-      if (rateFromCNY && rateFromCNY > 0) {
-        // API gives CNY->X rate, we need X->CNY (i.e. 1 USD = ? CNY)
-        const rateToCNY = 1 / rateFromCNY
+      const usdRate = rates[currency] // how many of this currency per 1 USD
+      if (usdRate && usdRate > 0) {
+        // 1 unit of currency = (cnyRate / usdRate) CNY
+        const rateToCNY = currency === "USD" ? cnyRate : cnyRate / usdRate
         await db.exchangeRates.put({
           currency,
           rateToCNY: Math.round(rateToCNY * 10000) / 10000,
