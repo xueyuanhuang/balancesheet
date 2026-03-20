@@ -5,6 +5,7 @@ import { format, subDays, subMonths, subYears } from "date-fns"
 import { zhCN } from "date-fns/locale"
 import { Area, AreaChart, XAxis, YAxis, CartesianGrid } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import {
   ChartContainer,
   ChartTooltip,
@@ -18,6 +19,7 @@ import { formatAmount } from "@/lib/utils/format"
 import type { NetWorthSnapshot } from "@/types"
 
 const RANGES = [
+  { label: "1天", days: 1 },
   { label: "1周", days: 7 },
   { label: "1月", days: 30 },
   { label: "3月", days: 90 },
@@ -52,6 +54,9 @@ function parseSnapshotDate(dateStr: string): Date {
 }
 
 function getXAxisFormat(days: number): (date: string) => string {
+  if (days > 0 && days <= 1) {
+    return (date: string) => format(parseSnapshotDate(date), "HH:mm")
+  }
   if (days > 0 && days <= 7) {
     return (date: string) => format(parseSnapshotDate(date), "M/d HH:mm")
   }
@@ -83,15 +88,16 @@ function snapshotToNetWorth(
 }
 
 export function NetWorthChart() {
-  const [rangeIndex, setRangeIndex] = useState(1) // default: 1月
-  const range = RANGES[rangeIndex]
+  const [rangeDays, setRangeDays] = useState(30) // default: 1月
+  const range = RANGES.find((r) => r.days === rangeDays) ?? RANGES[2]
   const rateMap = useRateMap()
 
   const startDate = useMemo(() => {
     if (range.days === 0) return undefined
     const now = new Date()
     let from: Date
-    if (range.days <= 7) from = subDays(now, range.days)
+    if (range.days <= 1) from = subDays(now, 1)
+    else if (range.days <= 7) from = subDays(now, range.days)
     else if (range.days <= 30) from = subMonths(now, 1)
     else if (range.days <= 90) from = subMonths(now, 3)
     else from = subYears(now, 1)
@@ -156,21 +162,21 @@ export function NetWorthChart() {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-medium">净资产趋势</CardTitle>
-          <div className="flex gap-1">
-            {RANGES.map((r, i) => (
-              <button
-                key={r.label}
-                onClick={() => setRangeIndex(i)}
-                className={`px-2 py-0.5 text-xs rounded-md transition-colors ${
-                  i === rangeIndex
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          <Select
+            value={rangeDays}
+            onValueChange={(v) => { if (v !== null) setRangeDays(v as number) }}
+          >
+            <SelectTrigger size="sm" className="text-xs">
+              {range.label}
+            </SelectTrigger>
+            <SelectContent align="end">
+              {RANGES.map((r) => (
+                <SelectItem key={r.days} value={r.days}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardHeader>
       <CardContent className="pb-2">
