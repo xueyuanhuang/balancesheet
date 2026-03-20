@@ -88,7 +88,11 @@ function snapshotToNetWorth(
 }
 
 export function NetWorthChart() {
-  const [rangeDays, setRangeDays] = useState(30) // default: 1月
+  const [rangeDays, setRangeDays] = useState(() => {
+    if (typeof window === "undefined") return 30
+    const saved = localStorage.getItem("net-worth-chart-range")
+    return saved ? Number(saved) : 30
+  })
   const range = RANGES.find((r) => r.days === rangeDays) ?? RANGES[2]
   const rateMap = useRateMap()
 
@@ -164,7 +168,7 @@ export function NetWorthChart() {
           <CardTitle className="text-sm font-medium">净资产趋势</CardTitle>
           <Select
             value={rangeDays}
-            onValueChange={(v) => { if (v !== null) setRangeDays(v as number) }}
+            onValueChange={(v) => { if (v !== null) { setRangeDays(v as number); localStorage.setItem("net-worth-chart-range", String(v)) } }}
           >
             <SelectTrigger size="sm" className="text-xs">
               {range.label}
