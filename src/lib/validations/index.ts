@@ -45,9 +45,13 @@ export const exchangeRateSchema = z.object({
 
 export const netWorthSnapshotSchema = z.object({
   date: z.string(),
-  netWorth: z.number(),
-  totalAssets: z.number(),
-  totalLiabilities: z.number(),
+  // v2: per-currency native cents
+  assets: z.record(z.string(), z.number()).optional(),
+  liabilities: z.record(z.string(), z.number()).optional(),
+  // v1 legacy: pre-computed CNY cents
+  netWorth: z.number().optional(),
+  totalAssets: z.number().optional(),
+  totalLiabilities: z.number().optional(),
   createdAt: z.number(),
 })
 

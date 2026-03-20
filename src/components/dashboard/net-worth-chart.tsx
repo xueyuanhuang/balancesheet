@@ -12,7 +12,10 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { useNetWorthSnapshots } from "@/lib/hooks/use-net-worth-snapshots"
+import { useRateMap } from "@/lib/hooks/use-exchange-rates"
+import { convertToCNY } from "@/lib/utils/currency"
 import { formatAmount } from "@/lib/utils/format"
+import type { NetWorthSnapshot } from "@/types"
 
 const RANGES = [
   { label: "1周", days: 7 },
@@ -58,9 +61,31 @@ function getXAxisFormat(days: number): (date: string) => string {
   return (date: string) => format(parseSnapshotDate(date), "M月", { locale: zhCN })
 }
 
+/** Convert a snapshot to CNY net worth using given rates */
+function snapshotToNetWorth(
+  snapshot: NetWorthSnapshot,
+  rateMap: Record<string, number>
+): number {
+  // v2 format: per-currency data
+  if (snapshot.assets) {
+    let totalAssets = 0
+    let totalLiabilities = 0
+    for (const [currency, cents] of Object.entries(snapshot.assets)) {
+      totalAssets += convertToCNY(cents, currency, rateMap)
+    }
+    for (const [currency, cents] of Object.entries(snapshot.liabilities ?? {})) {
+      totalLiabilities += convertToCNY(cents, currency, rateMap)
+    }
+    return totalAssets - totalLiabilities
+  }
+  // v1 legacy: pre-computed CNY
+  return snapshot.netWorth ?? 0
+}
+
 export function NetWorthChart() {
   const [rangeIndex, setRangeIndex] = useState(1) // default: 1月
   const range = RANGES[rangeIndex]
+  const rateMap = useRateMap()
 
   const startDate = useMemo(() => {
     if (range.days === 0) return undefined
@@ -76,17 +101,27 @@ export function NetWorthChart() {
   const snapshots = useNetWorthSnapshots(startDate)
   const xAxisFormatter = useMemo(() => getXAxisFormat(range.days), [range.days])
 
+  // Convert all snapshots to CNY using current exchange rates
+  const chartData = useMemo(
+    () =>
+      snapshots.map((s) => ({
+        date: s.date,
+        netWorth: snapshotToNetWorth(s, rateMap),
+      })),
+    [snapshots, rateMap]
+  )
+
   const yDomain = useMemo(() => {
-    if (snapshots.length < 2) return undefined
-    const values = snapshots.map((s) => s.netWorth)
+    if (chartData.length < 2) return undefined
+    const values = chartData.map((s) => s.netWorth)
     const min = Math.min(...values)
     const max = Math.max(...values)
-    const range = max - min
-    const padding = range > 0 ? range * 0.15 : Math.abs(max) * 0.05 || 10000
+    const r = max - min
+    const padding = r > 0 ? r * 0.15 : Math.abs(max) * 0.05 || 10000
     return [Math.floor(min - padding), Math.ceil(max + padding)] as [number, number]
-  }, [snapshots])
+  }, [chartData])
 
-  if (snapshots.length === 0) {
+  if (chartData.length === 0) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -101,7 +136,7 @@ export function NetWorthChart() {
     )
   }
 
-  if (snapshots.length === 1) {
+  if (chartData.length === 1) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -141,7 +176,7 @@ export function NetWorthChart() {
       <CardContent className="pb-2">
         <ChartContainer config={chartConfig} className="h-48 w-full aspect-auto">
           <AreaChart
-            data={snapshots}
+            data={chartData}
             margin={{ top: 4, right: 4, bottom: 0, left: 0 }}
           >
             <defs>
