@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Check } from "lucide-react"
 import { useAccounts } from "@/lib/hooks/use-accounts"
 import { useCategories } from "@/lib/hooks/use-categories"
 import { formatAmount } from "@/lib/utils/format"
-import { recordAccountUsage } from "@/lib/utils/account-usage"
+import { recordAccountUsage, getAccountUsageCount } from "@/lib/utils/account-usage"
 import { cn } from "@/lib/utils"
 import type { Account, Category } from "@/types"
 
@@ -35,10 +35,24 @@ function buildPickerTree(
       const children = buildPickerTree(categories, accounts, cat.id, excludeId)
       const directAccounts = accounts
         .filter((a) => a.categoryId === cat.id && !a.isArchived && a.id !== excludeId)
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => {
+          const usageDiff = getAccountUsageCount(b.id) - getAccountUsageCount(a.id)
+          if (usageDiff !== 0) return usageDiff
+          return a.name.localeCompare(b.name)
+        })
       return { category: cat, accounts: directAccounts, children }
     })
     .filter((node) => node.accounts.length > 0 || node.children.length > 0)
+    .sort((a, b) => {
+      const usageDiff = treeUsageCount(b) - treeUsageCount(a)
+      if (usageDiff !== 0) return usageDiff
+      return a.category.sortOrder - b.category.sortOrder
+    })
+}
+
+function treeUsageCount(node: CategoryTreeNode): number {
+  return node.accounts.reduce((sum, a) => sum + getAccountUsageCount(a.id), 0)
+    + node.children.reduce((sum, c) => sum + treeUsageCount(c), 0)
 }
 
 /** Collect all category IDs in the ancestor path to a given account */
