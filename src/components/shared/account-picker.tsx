@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Check } from "lucide-react"
 import { useAccounts } from "@/lib/hooks/use-accounts"
 import { useCategories } from "@/lib/hooks/use-categories"
 import { formatAmount } from "@/lib/utils/format"
-import { recordAccountUsage, getAccountUsageCount } from "@/lib/utils/account-usage"
+import { recordAccountUsage } from "@/lib/utils/account-usage"
 import { cn } from "@/lib/utils"
 import type { Account, Category } from "@/types"
 
@@ -16,9 +16,131 @@ interface AccountPickerProps {
   excludeId?: string
 }
 
-interface CategoryAccountGroup {
+interface CategoryTreeNode {
   category: Category
   accounts: Account[]
+  children: CategoryTreeNode[]
+}
+
+function buildPickerTree(
+  categories: Category[],
+  accounts: Account[],
+  parentId: string | null,
+  excludeId?: string
+): CategoryTreeNode[] {
+  return categories
+    .filter((c) => c.parentId === parentId && !c.isArchived)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((cat) => {
+      const children = buildPickerTree(categories, accounts, cat.id, excludeId)
+      const directAccounts = accounts
+        .filter((a) => a.categoryId === cat.id && !a.isArchived && a.id !== excludeId)
+        .sort((a, b) => a.name.localeCompare(b.name))
+      return { category: cat, accounts: directAccounts, children }
+    })
+    .filter((node) => node.accounts.length > 0 || node.children.length > 0)
+}
+
+/** Collect all category IDs in the ancestor path to a given account */
+function findAncestorIds(
+  categories: Category[],
+  accountCategoryId: string
+): string[] {
+  const ids: string[] = []
+  let currentId: string | null = accountCategoryId
+  while (currentId) {
+    ids.push(currentId)
+    const cat = categories.find((c) => c.id === currentId)
+    currentId = cat?.parentId ?? null
+  }
+  return ids
+}
+
+function PickerTreeNode({
+  node,
+  depth,
+  value,
+  expanded,
+  onToggle,
+  onSelect,
+}: {
+  node: CategoryTreeNode
+  depth: number
+  value: string | null
+  expanded: Set<string>
+  onToggle: (id: string) => void
+  onSelect: (accountId: string) => void
+}) {
+  const isExpanded = expanded.has(node.category.id)
+  const hasContent = node.children.length > 0 || node.accounts.length > 0
+  const totalAccounts = countAccounts(node)
+
+  return (
+    <div>
+      {/* Category header */}
+      <button
+        type="button"
+        className="flex w-full items-center gap-1.5 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50"
+        style={{ paddingLeft: `${depth * 16 + 12}px`, paddingRight: 12 }}
+        onClick={() => hasContent && onToggle(node.category.id)}
+      >
+        {isExpanded ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+        )}
+        {node.category.name}
+        <span className="ml-auto text-xs tabular-nums">{totalAccounts}</span>
+      </button>
+
+      {isExpanded && (
+        <div>
+          {/* Sub-categories */}
+          {node.children.map((child) => (
+            <PickerTreeNode
+              key={child.category.id}
+              node={child}
+              depth={depth + 1}
+              value={value}
+              expanded={expanded}
+              onToggle={onToggle}
+              onSelect={onSelect}
+            />
+          ))}
+          {/* Accounts */}
+          {node.accounts.map((account) => (
+            <button
+              key={account.id}
+              type="button"
+              className={cn(
+                "flex w-full items-center justify-between py-2 text-sm hover:bg-accent",
+                value === account.id && "bg-accent"
+              )}
+              style={{ paddingLeft: `${(depth + 1) * 16 + 12}px`, paddingRight: 12 }}
+              onClick={() => onSelect(account.id)}
+            >
+              <span className="truncate">
+                {account.name}
+                {account.currency !== "CNY" && (
+                  <span className="text-muted-foreground ml-1">({account.currency})</span>
+                )}
+              </span>
+              <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {formatAmount(account.balance, account.currency)}
+                </span>
+                {value === account.id && <Check className="h-3.5 w-3.5 text-primary" />}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function countAccounts(node: CategoryTreeNode): number {
+  return node.accounts.length + node.children.reduce((sum, c) => sum + countAccounts(c), 0)
 }
 
 export function AccountPicker({ value, onChange, label = "选择账户", excludeId }: AccountPickerProps) {
@@ -36,39 +158,25 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
       : selectedAccount.name
     : null
 
-  const grouped = useMemo(() => {
-    return categories
-      .map((cat) => {
-        const catAccounts = accounts
-          .filter((a) => a.categoryId === cat.id && !a.isArchived && a.id !== excludeId)
-          .sort((a, b) => {
-            const usageDiff = getAccountUsageCount(b.id) - getAccountUsageCount(a.id)
-            if (usageDiff !== 0) return usageDiff
-            return a.name.localeCompare(b.name)
-          })
-        if (catAccounts.length === 0) return null
-        return { category: cat, accounts: catAccounts } as CategoryAccountGroup
-      })
-      .filter((g): g is CategoryAccountGroup => g !== null)
-      .sort((a, b) => {
-        // Sum usage counts for all accounts in each category
-        const usageA = a.accounts.reduce((sum, acc) => sum + getAccountUsageCount(acc.id), 0)
-        const usageB = b.accounts.reduce((sum, acc) => sum + getAccountUsageCount(acc.id), 0)
-        if (usageA !== usageB) return usageB - usageA // higher usage first
-        return a.category.name.localeCompare(b.category.name) // then alphabetical
-      })
-  }, [categories, accounts, excludeId])
+  const tree = useMemo(
+    () => buildPickerTree(categories, accounts, null, excludeId),
+    [categories, accounts, excludeId]
+  )
 
-  // Auto-expand the category containing the selected account
+  // Auto-expand ancestors of selected account when opening
   useEffect(() => {
     if (open && value) {
-      for (const g of grouped) {
-        if (g.accounts.some((a) => a.id === value)) {
-          setExpanded((prev) => new Set(prev).add(g.category.id))
-        }
+      const account = accounts.find((a) => a.id === value)
+      if (account) {
+        const ancestorIds = findAncestorIds(categories, account.categoryId)
+        setExpanded((prev) => {
+          const next = new Set(prev)
+          for (const id of ancestorIds) next.add(id)
+          return next
+        })
       }
     }
-  }, [open, value, grouped])
+  }, [open, value, accounts, categories])
 
   // Close on click outside
   useEffect(() => {
@@ -114,54 +222,18 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
       {/* Dropdown */}
       {open && (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border bg-popover text-popover-foreground shadow-md">
-          {grouped.map(({ category, accounts: accts }) => {
-            const isExpanded = expanded.has(category.id)
-            return (
-              <div key={category.id}>
-                {/* Category header */}
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-1.5 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-accent/50"
-                  onClick={() => toggleCategory(category.id)}
-                >
-                  {isExpanded ? (
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-                  )}
-                  {category.name}
-                  <span className="ml-auto text-xs tabular-nums">{accts.length}</span>
-                </button>
-
-                {/* Accounts */}
-                {isExpanded && accts.map((account) => (
-                  <button
-                    key={account.id}
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-between px-3 py-2 pl-8 text-sm hover:bg-accent",
-                      value === account.id && "bg-accent"
-                    )}
-                    onClick={() => handleSelect(account.id)}
-                  >
-                    <span className="truncate">
-                      {account.name}
-                      {account.currency !== "CNY" && (
-                        <span className="text-muted-foreground ml-1">({account.currency})</span>
-                      )}
-                    </span>
-                    <span className="flex items-center gap-1.5 shrink-0 ml-2">
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {formatAmount(account.balance, account.currency)}
-                      </span>
-                      {value === account.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )
-          })}
-          {grouped.length === 0 && (
+          {tree.map((node) => (
+            <PickerTreeNode
+              key={node.category.id}
+              node={node}
+              depth={0}
+              value={value}
+              expanded={expanded}
+              onToggle={toggleCategory}
+              onSelect={handleSelect}
+            />
+          ))}
+          {tree.length === 0 && (
             <div className="py-4 text-center text-sm text-muted-foreground">
               暂无可选账户
             </div>
