@@ -109,48 +109,69 @@ function PickerTreeNode({
 
       {isExpanded && (
         <div>
-          {/* Sub-categories */}
-          {node.children.map((child) => (
-            <PickerTreeNode
-              key={child.category.id}
-              node={child}
-              depth={depth + 1}
-              value={value}
-              expanded={expanded}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-          {/* Accounts */}
-          {node.accounts.map((account) => (
-            <button
-              key={account.id}
-              type="button"
-              className={cn(
-                "flex w-full items-center justify-between py-2 text-sm hover:bg-accent",
-                value === account.id && "bg-accent"
-              )}
-              style={{ paddingLeft: `${(depth + 1) * 16 + 12}px`, paddingRight: 12 }}
-              onClick={() => onSelect(account.id)}
-            >
-              <span className="truncate">
-                {account.name}
-                {account.currency !== "CNY" && (
-                  <span className="text-muted-foreground ml-1">({account.currency})</span>
+          {/* Mixed: sub-categories and accounts sorted together by usage */}
+          {mixedItems(node).map((item) =>
+            item.type === "category" ? (
+              <PickerTreeNode
+                key={item.node.category.id}
+                node={item.node}
+                depth={depth + 1}
+                value={value}
+                expanded={expanded}
+                onToggle={onToggle}
+                onSelect={onSelect}
+              />
+            ) : (
+              <button
+                key={item.account.id}
+                type="button"
+                className={cn(
+                  "flex w-full items-center justify-between py-2 text-sm hover:bg-accent",
+                  value === item.account.id && "bg-accent"
                 )}
-              </span>
-              <span className="flex items-center gap-1.5 shrink-0 ml-2">
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {formatAmount(account.balance, account.currency)}
+                style={{ paddingLeft: `${(depth + 1) * 16 + 12}px`, paddingRight: 12 }}
+                onClick={() => onSelect(item.account.id)}
+              >
+                <span className="truncate">
+                  {item.account.name}
+                  {item.account.currency !== "CNY" && (
+                    <span className="text-muted-foreground ml-1">({item.account.currency})</span>
+                  )}
                 </span>
-                {value === account.id && <Check className="h-3.5 w-3.5 text-primary" />}
-              </span>
-            </button>
-          ))}
+                <span className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {formatAmount(item.account.balance, item.account.currency)}
+                  </span>
+                  {value === item.account.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                </span>
+              </button>
+            )
+          )}
         </div>
       )}
     </div>
   )
+}
+
+type MixedItem =
+  | { type: "category"; node: CategoryTreeNode; usage: number }
+  | { type: "account"; account: Account; usage: number }
+
+/** Merge sub-categories and accounts into one list sorted by usage */
+function mixedItems(node: CategoryTreeNode): MixedItem[] {
+  const items: MixedItem[] = [
+    ...node.children.map((child) => ({
+      type: "category" as const,
+      node: child,
+      usage: treeUsageCount(child),
+    })),
+    ...node.accounts.map((account) => ({
+      type: "account" as const,
+      account,
+      usage: getAccountUsageCount(account.id),
+    })),
+  ]
+  return items.sort((a, b) => b.usage - a.usage)
 }
 
 function countAccounts(node: CategoryTreeNode): number {
