@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,7 @@ import { AmountInput } from "@/components/shared/amount-input"
 import { AccountPicker } from "@/components/shared/account-picker"
 import { operationService } from "@/lib/services/operation-service"
 import { useAccount } from "@/lib/hooks/use-accounts"
+import { useCategory } from "@/lib/hooks/use-categories"
 import { getCurrencySymbol } from "@/lib/utils/constants"
 import { toast } from "sonner"
 import type { OperationWithEntries, EntryEffect } from "@/types"
@@ -67,6 +68,21 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   const singleAccount = useAccount(kind !== "transfer" ? accountId || undefined : undefined)
   const fromAccount = useAccount(kind === "transfer" ? fromAccountId || undefined : undefined)
   const toAccount = useAccount(kind === "transfer" ? toAccountId || undefined : undefined)
+
+  // Check if single account is a liability type
+  const singleCategory = useCategory(singleAccount?.categoryId)
+  const isLiability = singleCategory?.type === "liability"
+
+  // For edit mode: flip displayed effect once when category type loads
+  const editEffectAdjusted = useRef(false)
+  useEffect(() => {
+    if (mode === "edit" && singleCategory && !editEffectAdjusted.current) {
+      if (singleCategory.type === "liability") {
+        setEffect((e) => (e === "increase" ? "decrease" : "increase"))
+      }
+      editEffectAdjusted.current = true
+    }
+  }, [mode, singleCategory])
 
   const singleCurrency = singleAccount?.currency ?? "CNY"
   const fromCurrency = fromAccount?.currency ?? "CNY"
@@ -137,11 +153,18 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           return
         }
 
+        // For liability accounts, flip the effect:
+        // User sees "支出" (decrease) → store as "increase" (debt goes up)
+        // User sees "收入" (increase) → store as "decrease" (debt goes down)
+        const storageEffect: EntryEffect = isLiability
+          ? (effect === "increase" ? "decrease" : "increase")
+          : effect
+
         if (mode === "create") {
           if (kind === "normal") {
             await operationService.createNormal({
               accountId,
-              effect,
+              effect: storageEffect,
               amount,
               description,
               occurredAt: timestamp,
@@ -149,7 +172,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           } else {
             await operationService.createAdjustment({
               accountId,
-              effect,
+              effect: storageEffect,
               amount,
               description,
               occurredAt: timestamp,
@@ -158,7 +181,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         } else if (initialData) {
           await operationService.updateOperation(initialData.operation.id, {
             accountId,
-            effect,
+            effect: storageEffect,
             amount,
             description,
             occurredAt: timestamp,

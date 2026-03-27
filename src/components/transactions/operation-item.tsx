@@ -5,6 +5,7 @@ import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Setti
 import { AmountDisplay } from "@/components/shared/amount-display"
 import { formatDateTime, formatAmount } from "@/lib/utils/format"
 import { useAccount } from "@/lib/hooks/use-accounts"
+import { useCategory } from "@/lib/hooks/use-categories"
 import type { OperationWithEntries } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -30,18 +31,26 @@ export function OperationItem({ data }: OperationItemProps) {
 
   const sourceAccount = useAccount(sourceEntry?.accountId)
   const targetAccount = useAccount(targetEntry?.accountId)
+  const sourceCategory = useCategory(sourceAccount?.categoryId)
+
+  // For liability accounts, "increase" means debt went up = expense for user
+  const isSourceLiability = sourceCategory?.type === "liability"
 
   // Icon and color
   let Icon = ArrowLeftRight
   let iconColor = "text-blue-500"
 
   if (isSingleEntry && sourceEntry) {
-    if (sourceEntry.effect === "increase") {
-      Icon = ArrowDownLeft
-      iconColor = "text-emerald-500"
-    } else {
+    // Determine if this is an expense from the user's perspective
+    const isExpense = isSourceLiability
+      ? sourceEntry.effect === "increase"  // liability increase = user spent on credit
+      : sourceEntry.effect === "decrease"  // asset decrease = user spent cash
+    if (isExpense) {
       Icon = ArrowUpRight
       iconColor = "text-red-500"
+    } else {
+      Icon = ArrowDownLeft
+      iconColor = "text-emerald-500"
     }
   } else if (operation.kind === "fx_transfer") {
     Icon = RefreshCw
@@ -94,7 +103,12 @@ export function OperationItem({ data }: OperationItemProps) {
         <div className="text-right shrink-0">
           {isSingleEntry && sourceEntry ? (
             <AmountDisplay
-              cents={sourceEntry.effect === "increase" ? sourceEntry.amount : -sourceEntry.amount}
+              cents={
+                (isSourceLiability
+                  ? sourceEntry.effect === "decrease"  // liability decrease = debt reduced = positive
+                  : sourceEntry.effect === "increase"  // asset increase = income = positive
+                ) ? sourceEntry.amount : -sourceEntry.amount
+              }
               size="sm"
               colorize
               currency={sourceAccount?.currency}

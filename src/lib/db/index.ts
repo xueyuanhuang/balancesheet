@@ -132,4 +132,67 @@ db.version(12).stores({
   netWorthSnapshots: "date",
 })
 
+// v13: Fix liability account entries — flip effects for normal/adjustment operations
+// on liability accounts so that "支出" correctly increases the debt balance.
+db.version(13).stores({
+  categories: "id, type, parentId, sortOrder, isArchived",
+  accounts: "id, categoryId, isArchived, sortOrder",
+  operations: "id, kind, occurredAt, createdAt",
+  entries: "id, operationId, accountId",
+  exchangeRates: "currency",
+  netWorthSnapshots: "date",
+}).upgrade(async (tx) => {
+  const categories = tx.table("categories")
+  const accounts = tx.table("accounts")
+  const operations = tx.table("operations")
+  const entries = tx.table("entries")
+
+  // Find all liability category IDs
+  const allCategories = await categories.toArray()
+  const liabilityCategoryIds = new Set(
+    allCategories.filter((c: { type: string }) => c.type === "liability").map((c: { id: string }) => c.id)
+  )
+
+  // Find all liability account IDs
+  const allAccounts = await accounts.toArray()
+  const liabilityAccounts = allAccounts.filter(
+    (a: { categoryId: string }) => liabilityCategoryIds.has(a.categoryId)
+  )
+  const liabilityAccountIds = new Set(liabilityAccounts.map((a: { id: string }) => a.id))
+
+  if (liabilityAccountIds.size === 0) return
+
+  // Find all normal/adjustment operation IDs
+  const allOps = await operations.toArray()
+  const normalAdjOpIds = new Set(
+    allOps
+      .filter((op: { kind: string }) => op.kind === "normal" || op.kind === "adjustment")
+      .map((op: { id: string }) => op.id)
+  )
+
+  // Flip effects for entries on liability accounts from normal/adjustment operations
+  await entries.toCollection().modify((entry: { accountId: string; operationId: string; effect: string }) => {
+    if (liabilityAccountIds.has(entry.accountId) && normalAdjOpIds.has(entry.operationId)) {
+      entry.effect = entry.effect === "increase" ? "decrease" : "increase"
+    }
+  })
+
+  // Recalculate balances for liability accounts
+  for (const account of liabilityAccounts) {
+    const acct = account as { id: string; openingBalance: number }
+    const accountEntries = await entries.where("accountId").equals(acct.id).toArray()
+    const incSum = accountEntries
+      .filter((e: { effect: string }) => e.effect === "increase")
+      .reduce((sum: number, e: { amount: number }) => sum + e.amount, 0)
+    const decSum = accountEntries
+      .filter((e: { effect: string }) => e.effect === "decrease")
+      .reduce((sum: number, e: { amount: number }) => sum + e.amount, 0)
+
+    await accounts.update(acct.id, {
+      balance: acct.openingBalance + incSum - decSum,
+      updatedAt: Date.now(),
+    })
+  }
+})
+
 export { db }
