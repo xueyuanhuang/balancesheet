@@ -175,12 +175,15 @@
 }
 
 /* Privacy mode — hide amounts but keep chart curves */
-.privacy-mode .tabular-nums,
-.privacy-mode .recharts-yaxis .recharts-text {
+.privacy-mode .tabular-nums {
   filter: blur(10px);
   -webkit-user-select: none;
   user-select: none;
   pointer-events: none;
+}
+
+.privacy-mode .recharts-yaxis {
+  visibility: hidden;
 }
 
 .privacy-mode .recharts-tooltip-wrapper {
