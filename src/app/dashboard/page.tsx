@@ -43,7 +43,7 @@ export default function DashboardPage() {
         }
       />
       <div className="p-4 space-y-4">
-        {hasAccounts && <NetWorthChart />}
+        {hasAccounts && <NetWorthChart privacyMode={privacyMode} />}
         <NetWorthCard
           netWorth={netWorth}
           totalAssets={totalAssets}

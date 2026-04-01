@@ -181,11 +181,3 @@
   user-select: none;
   pointer-events: none;
 }
-
-.privacy-mode .recharts-yaxis {
-  visibility: hidden;
-}
-
-.privacy-mode .recharts-tooltip-wrapper {
-  display: none !important;
-}

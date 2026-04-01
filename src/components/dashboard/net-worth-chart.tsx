@@ -87,7 +87,11 @@ function snapshotToNetWorth(
   return snapshot.netWorth ?? 0
 }
 
-export function NetWorthChart() {
+interface NetWorthChartProps {
+  privacyMode?: boolean
+}
+
+export function NetWorthChart({ privacyMode = false }: NetWorthChartProps) {
   const [rangeDays, setRangeDays] = useState(() => {
     if (typeof window === "undefined") return 30
     const saved = localStorage.getItem("net-worth-chart-range")
@@ -211,19 +215,22 @@ export function NetWorthChart() {
               tickFormatter={formatYAxis}
               width={48}
               domain={yDomain}
+              hide={privacyMode}
             />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(_, payload) => {
-                    if (!payload?.[0]?.payload?.date) return ""
-                    return format(parseSnapshotDate(payload[0].payload.date), "yyyy年M月d日 HH:mm", { locale: zhCN })
-                  }}
-                  formatter={(value) => formatAmount(value as number)}
-                  hideIndicator
-                />
-              }
-            />
+            {!privacyMode && (
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    labelFormatter={(_, payload) => {
+                      if (!payload?.[0]?.payload?.date) return ""
+                      return format(parseSnapshotDate(payload[0].payload.date), "yyyy年M月d日 HH:mm", { locale: zhCN })
+                    }}
+                    formatter={(value) => formatAmount(value as number)}
+                    hideIndicator
+                  />
+                }
+              />
+            )}
             <Area
               type="monotone"
               dataKey="netWorth"
