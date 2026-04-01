@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { Plus, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/layout/page-header"
 import { NetWorthCard } from "@/components/dashboard/net-worth-card"
@@ -16,12 +17,31 @@ export default function DashboardPage() {
   const { assetTree, liabilityTree, totalAssets, totalLiabilities, netWorth } = useBalanceSheet()
   const accounts = useAccounts()
   const hasAccounts = accounts.length > 0
+  const [privacyMode, setPrivacyMode] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem("dashboard-privacy") === "1"
+  })
+
+  const togglePrivacy = () => {
+    setPrivacyMode((prev) => {
+      const next = !prev
+      localStorage.setItem("dashboard-privacy", next ? "1" : "0")
+      return next
+    })
+  }
 
   useRecordSnapshot({ netWorth, totalAssets, totalLiabilities, hasAccounts })
 
   return (
-    <div>
-      <PageHeader title="总览" />
+    <div className={privacyMode ? "privacy-mode" : ""}>
+      <PageHeader
+        title="总览"
+        rightAction={
+          <Button variant="ghost" size="icon" onClick={togglePrivacy}>
+            {privacyMode ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </Button>
+        }
+      />
       <div className="p-4 space-y-4">
         {hasAccounts && <NetWorthChart />}
         <NetWorthCard
