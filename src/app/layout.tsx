@@ -14,12 +14,12 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "个人资产负债表",
+  title: "净值",
   description: "清晰管理你的资产、负债和净资产",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "资产负债表",
+    title: "净值",
   },
 }
 
