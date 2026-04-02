@@ -1,13 +1,14 @@
 "use client"
 
-import { use } from "react"
+import { useSearchParams } from "next/navigation"
 import { PageHeader } from "@/components/layout/page-header"
 import { CategoryForm } from "@/components/categories/category-form"
 import { useCategory } from "@/lib/hooks/use-categories"
 
-export default function EditCategoryPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const category = useCategory(id)
+export default function EditCategoryPage() {
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id") ?? ""
+  const category = useCategory(id || undefined)
 
   if (!category) {
     return (

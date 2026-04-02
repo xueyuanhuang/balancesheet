@@ -1,6 +1,7 @@
 "use client"
 
-import { use, useState } from "react"
+import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Pencil, Trash2, Archive } from "lucide-react"
@@ -20,12 +21,13 @@ import { formatAmount, formatDate } from "@/lib/utils/format"
 import { convertToCNY } from "@/lib/utils/currency"
 import { toast } from "sonner"
 
-export default function AccountDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function AccountDetailPage() {
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id") ?? ""
   const router = useRouter()
-  const account = useAccount(id)
+  const account = useAccount(id || undefined)
   const category = useCategory(account?.categoryId)
-  const operations = useOperations({ accountId: id })
+  const operations = useOperations({ accountId: id || undefined })
   const rateMap = useRateMap()
 
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -97,7 +99,7 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
         showBack
         rightAction={
           <div className="flex items-center gap-1">
-            <Link href={`/accounts/${id}/edit`}>
+            <Link href={`/accounts/edit?id=${id}`}>
               <Button variant="ghost" size="icon">
                 <Pencil className="h-5 w-5" />
               </Button>
@@ -160,7 +162,6 @@ export default function AccountDetailPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
-        {/* Recent operations */}
         {operations.length > 0 && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground px-1 mb-2">最近流水</h3>

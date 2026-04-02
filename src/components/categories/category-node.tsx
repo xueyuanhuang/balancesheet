@@ -122,7 +122,7 @@ export function CategoryNode({
           )}
           style={{ marginLeft: `${depth * 20 + 16}px` }}
         >
-          <Link href={`/categories/${node.id}/edit`}>
+          <Link href={`/categories/edit?id=${node.id}`}>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
               <Pencil className="h-3.5 w-3.5" />
               编辑

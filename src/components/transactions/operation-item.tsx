@@ -87,7 +87,7 @@ export function OperationItem({ data }: OperationItemProps) {
     !isCrossCurrency && sourceEntry.amount !== targetEntry.amount
 
   return (
-    <Link href={`/transactions/${operation.id}/edit`}>
+    <Link href={`/transactions/edit?id=${operation.id}`}>
       <div className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
         <div className={cn("shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
           <Icon className="h-4 w-4" />

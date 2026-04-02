@@ -166,7 +166,7 @@ export default function CategoriesPage() {
                   size="sm"
                   onClick={() => {
                     setBlockedInfo((p) => ({ ...p, open: false }))
-                    router.push(`/accounts/${acc.id}/edit`)
+                    router.push(`/accounts/edit?id=${acc.id}`)
                   }}
                 >
                   去编辑

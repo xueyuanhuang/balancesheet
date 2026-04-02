@@ -108,13 +108,13 @@ export function AccountCard({
   const handleClick = useCallback(() => {
     if (dragJustEnded.current) return
     if (isDragging) return
-    router.push(`/accounts/${account.id}`)
+    router.push(`/accounts/detail?id=${account.id}`)
   }, [isDragging, account.id, router])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault()
-      router.push(`/accounts/${account.id}`)
+      router.push(`/accounts/detail?id=${account.id}`)
     }
   }, [account.id, router])
 

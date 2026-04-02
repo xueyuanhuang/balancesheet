@@ -15,21 +15,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Personal balance sheet PWA — mobile-first, fully client-side (no backend). Data lives in IndexedDB via Dexie.js. Supports multi-currency (CNY/USD/HKD).
+Personal balance sheet PWA — mobile-first, fully client-side (no backend). Data lives in IndexedDB via Dexie.js. Supports multi-currency (CNY/USD/HKD/SGD).
 
 ### Layer Structure
-1. **DB** (`lib/db/`) — Dexie schema currently at v11 (IDB v110 after ×10 multiplier). 5 active tables: categories, accounts, operations, entries, exchangeRates. The `transactions` table from v1 was deleted in v2. v11 was added to force-upgrade databases stuck at IDB v10.
-2. **Services** (`lib/services/`) — Business logic, all writes go through here. Services handle validation, cascade operations, and balance recalculation
+1. **DB** (`lib/db/`) — Dexie schema currently at v12. 6 active tables: categories, accounts, operations, entries, exchangeRates, netWorthSnapshots. v11 forces schema repair for stuck databases; v12 added hourly net worth snapshots.
+2. **Services** (`lib/services/`) — Business logic, all writes go through here. Key services: `accountService` (CRUD + balance recalc), `categoryService` (hierarchy + cascade delete), `operationService` (financial events), `exchangeRateService`, `snapshotService` (hourly net worth snapshots), `backupService` (export/import)
 3. **Hooks** (`lib/hooks/`) — Reactive queries via `dexie-react-hooks` (`useLiveQuery`). All marked `"use client"`
 4. **Components** — shadcn/ui on `@base-ui/react` (NOT Radix), plus domain components
-5. **Pages** (`app/`) — Next.js 16 App Router. Root layout is Server Component; all pages are `"use client"`
+5. **Pages** (`app/`) — Next.js 16.1.6 App Router. Root layout is Server Component; all pages are `"use client"`
 
 ### Domain Model
 - **Category** — hierarchical (parentId adjacency list), typed as `"asset" | "liability"`
-- **Account** — belongs to a category, has a `currency` (CNY/USD/HKD). `balance` is cached field recalculated from entries. One account = one currency; same-name accounts with different currencies are grouped in the UI
+- **Account** — belongs to a category, has a `currency` (CNY/USD/HKD/SGD). `balance` is cached field recalculated from entries. One account = one currency; same-name accounts with different currencies are grouped in the UI
 - **Operation** — a logical financial event with `kind`: normal, transfer, fx_transfer, liability_repayment, liability_drawdown, adjustment. Stores optional FX rate snapshot for cross-currency operations
 - **Entry** — one or two per operation. Has `role` (source/target), `effect` (increase/decrease), and `amount` in the account's native currency cents
 - **ExchangeRate** — per-currency rate to CNY (e.g., 1 USD = 7.25 CNY)
+- **NetWorthSnapshot** — hourly snapshot (key: `"YYYY-MM-DD HH:00"`) with per-currency asset/liability breakdown in native currency cents. Chart renders all points using current exchange rates to eliminate FX noise. Recorded via `snapshotService.recordToday()` when user opens dashboard
 
 ### Operation Kind Rules
 | from type | to type | same currency | Kind | from effect | to effect |
@@ -53,6 +54,7 @@ Personal balance sheet PWA — mobile-first, fully client-side (no backend). Dat
 - **Chinese locale** — all UI text in zh-CN, date-fns uses `zhCN` locale
 - **Dexie transaction scope** — when calling `db.transaction("rw", [...], ...)`, ALL tables accessed inside the callback must be declared in the scope array. Accessing `db.categories` inside a transaction scoped to only `[db.operations, db.entries, db.accounts]` throws `IDBTransaction objectStore not found`
 - **Currency display** — `lib/hooks/use-currency-display.ts` persists display mode (auto/CNY/USD/HKD) in localStorage. `convertFromCNY()` in `lib/utils/currency.ts` handles reverse conversion with null fallback when rate is missing
+- **Persistent UI state** — chart time range in localStorage (`net-worth-chart-range`), account list expanded state in sessionStorage, last used currency in localStorage
 
 ### Navigation
 Bottom nav: 4 tabs (总览/账户/流水/设置) + center FAB (记账). Categories page and exchange rate settings are accessed from Settings.

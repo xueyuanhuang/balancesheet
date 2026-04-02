@@ -1,6 +1,6 @@
 "use client"
 
-import { use } from "react"
+import { useSearchParams } from "next/navigation"
 import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -10,10 +10,11 @@ import { useOperation } from "@/lib/hooks/use-operations"
 import { operationService } from "@/lib/services/operation-service"
 import { toast } from "sonner"
 
-export default function EditTransactionPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function EditTransactionPage() {
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id") ?? ""
   const router = useRouter()
-  const operationData = useOperation(id)
+  const operationData = useOperation(id || undefined)
 
   const handleDelete = async () => {
     if (!operationData) return

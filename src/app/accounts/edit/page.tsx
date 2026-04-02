@@ -1,13 +1,14 @@
 "use client"
 
-import { use } from "react"
+import { useSearchParams } from "next/navigation"
 import { PageHeader } from "@/components/layout/page-header"
 import { AccountForm } from "@/components/accounts/account-form"
 import { useAccount } from "@/lib/hooks/use-accounts"
 
-export default function EditAccountPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const account = useAccount(id)
+export default function EditAccountPage() {
+  const searchParams = useSearchParams()
+  const id = searchParams.get("id") ?? ""
+  const account = useAccount(id || undefined)
 
   if (!account) {
     return (

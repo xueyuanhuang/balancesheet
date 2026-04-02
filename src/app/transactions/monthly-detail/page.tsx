@@ -46,7 +46,7 @@ export default function MonthlyDetailPage() {
             {items.map((item) => (
               <Link
                 key={`${item.operationId}-${item.accountName}`}
-                href={`/transactions/${item.operationId}/edit`}
+                href={`/transactions/edit?id=${item.operationId}`}
               >
                 <div className="flex items-center justify-between py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
                   <div className="min-w-0 flex-1">
