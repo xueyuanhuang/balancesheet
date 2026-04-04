@@ -15,6 +15,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/layout/page-header"
+import { WechatCTA } from "@/components/shared/wechat-cta"
 import { backupService } from "@/lib/services/backup-service"
 import { resetAllData } from "@/lib/db/seed"
 import { toast } from "sonner"
@@ -167,9 +168,12 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* WeChat CTA */}
+        <WechatCTA />
+
         {/* App info */}
         <div className="text-center text-xs text-muted-foreground pt-4">
-          个人资产负债表 v0.2.0
+          净值 v0.3.0
         </div>
       </div>
 
