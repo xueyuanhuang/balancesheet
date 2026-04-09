@@ -1,5 +1,0 @@
-# Backward compat: old dynamic routes → new query param routes
-/accounts/*/edit  /accounts/edit  301
-/accounts/*  /accounts/detail  301
-/transactions/*/edit  /transactions/edit  301
-/categories/*/edit  /categories/edit  301
