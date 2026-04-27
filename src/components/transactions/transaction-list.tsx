@@ -3,13 +3,17 @@
 import { OperationItem } from "./operation-item"
 import { EmptyState } from "@/components/shared/empty-state"
 import { ArrowLeftRight } from "lucide-react"
+import { useRunningBalances } from "@/lib/hooks/use-running-balances"
 import type { OperationWithEntries } from "@/types"
 
 interface TransactionListProps {
   operations: OperationWithEntries[]
+  filterAccountId?: string
 }
 
-export function TransactionList({ operations }: TransactionListProps) {
+export function TransactionList({ operations, filterAccountId }: TransactionListProps) {
+  const runningBalances = useRunningBalances(operations)
+
   if (operations.length === 0) {
     return (
       <EmptyState
@@ -41,7 +45,12 @@ export function TransactionList({ operations }: TransactionListProps) {
           </div>
           <div>
             {items.map((item) => (
-              <OperationItem key={item.operation.id} data={item} />
+              <OperationItem
+                key={item.operation.id}
+                data={item}
+                runningBalances={runningBalances}
+                filterAccountId={filterAccountId}
+              />
             ))}
           </div>
         </div>

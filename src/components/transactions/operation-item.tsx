@@ -20,9 +20,11 @@ const KIND_LABELS: Record<string, string> = {
 
 interface OperationItemProps {
   data: OperationWithEntries
+  runningBalances?: Map<string, number>
+  filterAccountId?: string
 }
 
-export function OperationItem({ data }: OperationItemProps) {
+export function OperationItem({ data, runningBalances, filterAccountId }: OperationItemProps) {
   const { operation, entries } = data
   const sourceEntry = entries.find((e) => e.role === "source")
   const targetEntry = entries.find((e) => e.role === "target")
@@ -86,6 +88,37 @@ export function OperationItem({ data }: OperationItemProps) {
     sourceAccount && targetAccount &&
     !isCrossCurrency && sourceEntry.amount !== targetEntry.amount
 
+  // Running balance text (rendered below the amount column)
+  const balanceText = (() => {
+    if (!runningBalances) return null
+
+    const fmt = (cents: number, currency: string) => formatAmount(cents, currency)
+
+    if (filterAccountId) {
+      const entry = entries.find((e) => e.accountId === filterAccountId)
+      if (!entry) return null
+      const account = entry.id === sourceEntry?.id ? sourceAccount : targetAccount
+      const balance = runningBalances.get(entry.id)
+      if (balance === undefined || !account) return null
+      return `余 ${fmt(balance, account.currency)}`
+    }
+
+    if (isSingleEntry && sourceEntry && sourceAccount) {
+      const balance = runningBalances.get(sourceEntry.id)
+      if (balance === undefined) return null
+      return `余 ${fmt(balance, sourceAccount.currency)}`
+    }
+
+    if (isMultiEntry && sourceEntry && targetEntry && sourceAccount && targetAccount) {
+      const srcBal = runningBalances.get(sourceEntry.id)
+      const tgtBal = runningBalances.get(targetEntry.id)
+      if (srcBal === undefined || tgtBal === undefined) return null
+      return `余 ${fmt(srcBal, sourceAccount.currency)} → ${fmt(tgtBal, targetAccount.currency)}`
+    }
+
+    return null
+  })()
+
   return (
     <Link href={`/transactions/edit?id=${operation.id}`}>
       <div className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
@@ -100,7 +133,7 @@ export function OperationItem({ data }: OperationItemProps) {
             {secondaryText}
           </div>
         </div>
-        <div className="text-right shrink-0">
+        <div className="text-right shrink-0 flex flex-col items-end">
           {isSingleEntry && sourceEntry ? (
             <AmountDisplay
               cents={
@@ -115,7 +148,7 @@ export function OperationItem({ data }: OperationItemProps) {
             />
           ) : isMultiEntry && sourceEntry && targetEntry ? (
             isCrossCurrency || hasFee ? (
-              <div className="flex flex-col items-end">
+              <>
                 <span className="text-sm tabular-nums text-red-500">
                   {formatAmount(-sourceEntry.amount, sourceAccount!.currency)}
                 </span>
@@ -124,7 +157,7 @@ export function OperationItem({ data }: OperationItemProps) {
                     ? formatAmount(-targetEntry.amount, targetAccount!.currency)
                     : formatAmount(targetEntry.amount, targetAccount!.currency)}
                 </span>
-              </div>
+              </>
             ) : (
               <AmountDisplay
                 cents={sourceEntry.amount}
@@ -133,6 +166,11 @@ export function OperationItem({ data }: OperationItemProps) {
               />
             )
           ) : null}
+          {balanceText && (
+            <span className="text-xs tabular-nums text-muted-foreground mt-0.5">
+              {balanceText}
+            </span>
+          )}
         </div>
       </div>
     </Link>

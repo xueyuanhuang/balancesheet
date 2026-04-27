@@ -165,7 +165,7 @@ export default function AccountDetailPage() {
         {operations.length > 0 && (
           <div>
             <h3 className="text-sm font-medium text-muted-foreground px-1 mb-2">最近流水</h3>
-            <TransactionList operations={operations} />
+            <TransactionList operations={operations} filterAccountId={id} />
           </div>
         )}
       </div>
