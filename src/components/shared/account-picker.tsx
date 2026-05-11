@@ -198,21 +198,6 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
     [categories, accounts, excludeId]
   )
 
-  // Auto-expand ancestors of selected account when opening
-  useEffect(() => {
-    if (open && value) {
-      const account = accounts.find((a) => a.id === value)
-      if (account) {
-        const ancestorIds = findAncestorIds(categories, account.categoryId)
-        setExpanded((prev) => {
-          const next = new Set(prev)
-          for (const id of ancestorIds) next.add(id)
-          return next
-        })
-      }
-    }
-  }, [open, value, accounts, categories])
-
   // Close on click outside
   useEffect(() => {
     if (!open) return
@@ -234,6 +219,27 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
     })
   }
 
+  const expandSelectedAncestors = () => {
+    if (!value) return
+
+    const account = accounts.find((a) => a.id === value)
+    if (!account) return
+
+    const ancestorIds = findAncestorIds(categories, account.categoryId)
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      for (const id of ancestorIds) next.add(id)
+      return next
+    })
+  }
+
+  const handleTriggerClick = () => {
+    if (!open) {
+      expandSelectedAncestors()
+    }
+    setOpen((prev) => !prev)
+  }
+
   const handleSelect = (accountId: string) => {
     recordAccountUsage(accountId)
     onChange(accountId)
@@ -245,7 +251,7 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
       {/* Trigger */}
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleTriggerClick}
         className="flex h-9 w-full items-center justify-between rounded-lg border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
         <span className={cn("truncate", !displayText && "text-muted-foreground")}>

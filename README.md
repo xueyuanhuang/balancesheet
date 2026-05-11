@@ -26,6 +26,10 @@ pnpm install
 pnpm dev
 ```
 
+## 发布
+
+- [iOS 上架操作手册](docs/ios-app-store-release.md)
+
 ## 联系作者
 
 微信：`_xueyuanhuang`（备注「小作坊」进 AI 小作坊群）
