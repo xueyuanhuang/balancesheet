@@ -4,16 +4,27 @@ import { useState, useMemo, useRef, useEffect } from "react"
 import { ChevronDown, ChevronRight, Check } from "lucide-react"
 import { useAccounts } from "@/lib/hooks/use-accounts"
 import { useCategories } from "@/lib/hooks/use-categories"
+import { useLiveQuery } from "dexie-react-hooks"
+import { db } from "@/lib/db"
 import { formatAmount } from "@/lib/utils/format"
-import { recordAccountUsage, getAccountUsageCount } from "@/lib/utils/account-usage"
 import { cn } from "@/lib/utils"
 import type { Account, Category } from "@/types"
+
+type AccountPickerSortMode =
+  | "recentAny"
+  | "recentExpense"
+  | "recentIncome"
+  | "recentTransferSource"
+  | "recentTransferTarget"
+  | "recentAdjustment"
+const EMPTY_SORT_VALUES: Record<string, number> = {}
 
 interface AccountPickerProps {
   value: string | null
   onChange: (accountId: string) => void
   label?: string
   excludeId?: string
+  sortMode?: AccountPickerSortMode
 }
 
 interface CategoryTreeNode {
@@ -26,33 +37,47 @@ function buildPickerTree(
   categories: Category[],
   accounts: Account[],
   parentId: string | null,
-  excludeId?: string
+  excludeId: string | undefined,
+  sortMode: AccountPickerSortMode,
+  sortValues: Record<string, number>
 ): CategoryTreeNode[] {
   return categories
     .filter((c) => c.parentId === parentId && !c.isArchived)
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map((cat) => {
-      const children = buildPickerTree(categories, accounts, cat.id, excludeId)
+      const children = buildPickerTree(categories, accounts, cat.id, excludeId, sortMode, sortValues)
       const directAccounts = accounts
         .filter((a) => a.categoryId === cat.id && !a.isArchived && a.id !== excludeId)
         .sort((a, b) => {
-          const usageDiff = getAccountUsageCount(b.id) - getAccountUsageCount(a.id)
-          if (usageDiff !== 0) return usageDiff
+          const sortDiff = getAccountSortValue(b.id, sortValues) - getAccountSortValue(a.id, sortValues)
+          if (sortDiff !== 0) return sortDiff
           return a.name.localeCompare(b.name)
         })
       return { category: cat, accounts: directAccounts, children }
     })
     .filter((node) => node.accounts.length > 0 || node.children.length > 0)
     .sort((a, b) => {
-      const usageDiff = treeUsageCount(b) - treeUsageCount(a)
-      if (usageDiff !== 0) return usageDiff
+      const sortDiff = treeSortValue(b, sortValues) - treeSortValue(a, sortValues)
+      if (sortDiff !== 0) return sortDiff
       return a.category.sortOrder - b.category.sortOrder
     })
 }
 
-function treeUsageCount(node: CategoryTreeNode): number {
-  return node.accounts.reduce((sum, a) => sum + getAccountUsageCount(a.id), 0)
-    + node.children.reduce((sum, c) => sum + treeUsageCount(c), 0)
+function getAccountSortValue(
+  accountId: string,
+  sortValues: Record<string, number>
+): number {
+  return sortValues[accountId] ?? 0
+}
+
+function treeSortValue(
+  node: CategoryTreeNode,
+  sortValues: Record<string, number>
+): number {
+  const accountValues = node.accounts.map((a) => getAccountSortValue(a.id, sortValues))
+  const childValues = node.children.map((c) => treeSortValue(c, sortValues))
+
+  return Math.max(0, ...accountValues, ...childValues)
 }
 
 /** Collect all category IDs in the ancestor path to a given account */
@@ -75,6 +100,8 @@ function PickerTreeNode({
   depth,
   value,
   expanded,
+  sortMode,
+  sortValues,
   onToggle,
   onSelect,
 }: {
@@ -82,6 +109,8 @@ function PickerTreeNode({
   depth: number
   value: string | null
   expanded: Set<string>
+  sortMode: AccountPickerSortMode
+  sortValues: Record<string, number>
   onToggle: (id: string) => void
   onSelect: (accountId: string) => void
 }) {
@@ -109,8 +138,8 @@ function PickerTreeNode({
 
       {isExpanded && (
         <div>
-          {/* Mixed: sub-categories and accounts sorted together by usage */}
-          {mixedItems(node).map((item) =>
+          {/* Mixed: sub-categories and accounts sorted together by picker mode */}
+          {mixedItems(node, sortMode, sortValues).map((item) =>
             item.type === "category" ? (
               <PickerTreeNode
                 key={item.node.category.id}
@@ -118,6 +147,8 @@ function PickerTreeNode({
                 depth={depth + 1}
                 value={value}
                 expanded={expanded}
+                sortMode={sortMode}
+                sortValues={sortValues}
                 onToggle={onToggle}
                 onSelect={onSelect}
               />
@@ -154,37 +185,118 @@ function PickerTreeNode({
 }
 
 type MixedItem =
-  | { type: "category"; node: CategoryTreeNode; usage: number }
-  | { type: "account"; account: Account; usage: number }
+  | { type: "category"; node: CategoryTreeNode; sortValue: number }
+  | { type: "account"; account: Account; sortValue: number }
 
-/** Merge sub-categories and accounts into one list sorted by usage */
-function mixedItems(node: CategoryTreeNode): MixedItem[] {
+/** Merge sub-categories and accounts into one list sorted by the picker mode */
+function mixedItems(
+  node: CategoryTreeNode,
+  sortMode: AccountPickerSortMode,
+  sortValues: Record<string, number>
+): MixedItem[] {
   const items: MixedItem[] = [
     ...node.children.map((child) => ({
       type: "category" as const,
       node: child,
-      usage: treeUsageCount(child),
+      sortValue: treeSortValue(child, sortValues),
     })),
     ...node.accounts.map((account) => ({
       type: "account" as const,
       account,
-      usage: getAccountUsageCount(account.id),
+      sortValue: getAccountSortValue(account.id, sortValues),
     })),
   ]
-  return items.sort((a, b) => b.usage - a.usage)
+  return items.sort((a, b) => {
+    const sortDiff = b.sortValue - a.sortValue
+    if (sortDiff !== 0) return sortDiff
+
+    if (a.type === "category" && b.type === "category") {
+      return a.node.category.sortOrder - b.node.category.sortOrder
+    }
+    if (a.type === "account" && b.type === "account") {
+      return a.account.name.localeCompare(b.account.name)
+    }
+    return a.type === "category" ? -1 : 1
+  })
 }
 
 function countAccounts(node: CategoryTreeNode): number {
   return node.accounts.length + node.children.reduce((sum, c) => sum + countAccounts(c), 0)
 }
 
-export function AccountPicker({ value, onChange, label = "选择账户", excludeId }: AccountPickerProps) {
+function useRecentAccountSortValues(sortMode: AccountPickerSortMode) {
+  return useLiveQuery(
+    async (): Promise<Record<string, number>> => {
+      const [accounts, categories, operations, entries] = await Promise.all([
+        db.accounts.toArray(),
+        db.categories.toArray(),
+        db.operations.toArray(),
+        db.entries.toArray(),
+      ])
+
+      const categoryTypeById = new Map(categories.map((category) => [category.id, category.type]))
+      const accountTypeById = new Map(
+        accounts.map((account) => [account.id, categoryTypeById.get(account.categoryId)])
+      )
+      const operationById = new Map(operations.map((operation) => [operation.id, operation]))
+      const latestByAccount: Record<string, number> = {}
+
+      for (const entry of entries) {
+        const operation = operationById.get(entry.operationId)
+        if (!operation) continue
+
+        const accountType = accountTypeById.get(entry.accountId)
+        const isUserFacingExpense =
+          (accountType === "asset" && entry.effect === "decrease") ||
+          (accountType === "liability" && entry.effect === "increase")
+        const isUserFacingIncome =
+          (accountType === "asset" && entry.effect === "increase") ||
+          (accountType === "liability" && entry.effect === "decrease")
+
+        const matchesSortMode =
+          sortMode === "recentAny" ||
+          (sortMode === "recentExpense" && operation.kind === "normal" && isUserFacingExpense) ||
+          (sortMode === "recentIncome" && operation.kind === "normal" && isUserFacingIncome) ||
+          (sortMode === "recentTransferSource" &&
+            operation.kind !== "normal" &&
+            operation.kind !== "adjustment" &&
+            entry.role === "source") ||
+          (sortMode === "recentTransferTarget" &&
+            operation.kind !== "normal" &&
+            operation.kind !== "adjustment" &&
+            entry.role === "target") ||
+          (sortMode === "recentAdjustment" && operation.kind === "adjustment")
+
+        if (!matchesSortMode) continue
+
+        latestByAccount[entry.accountId] = Math.max(
+          latestByAccount[entry.accountId] ?? 0,
+          operation.occurredAt
+        )
+      }
+
+      return latestByAccount
+    },
+    [sortMode],
+    {} as Record<string, number>
+  )
+}
+
+export function AccountPicker({
+  value,
+  onChange,
+  label = "选择账户",
+  excludeId,
+  sortMode = "recentAny",
+}: AccountPickerProps) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const containerRef = useRef<HTMLDivElement>(null)
 
   const accounts = useAccounts()
   const categories = useCategories()
+  const recentSortValues = useRecentAccountSortValues(sortMode)
+  const sortValues = recentSortValues ?? EMPTY_SORT_VALUES
   const selectedAccount = accounts.find((a) => a.id === value)
 
   const displayText = selectedAccount
@@ -194,8 +306,8 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
     : null
 
   const tree = useMemo(
-    () => buildPickerTree(categories, accounts, null, excludeId),
-    [categories, accounts, excludeId]
+    () => buildPickerTree(categories, accounts, null, excludeId, sortMode, sortValues),
+    [categories, accounts, excludeId, sortMode, sortValues]
   )
 
   // Close on click outside
@@ -241,7 +353,6 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
   }
 
   const handleSelect = (accountId: string) => {
-    recordAccountUsage(accountId)
     onChange(accountId)
     setOpen(false)
   }
@@ -270,6 +381,8 @@ export function AccountPicker({ value, onChange, label = "选择账户", exclude
               depth={0}
               value={value}
               expanded={expanded}
+              sortMode={sortMode}
+              sortValues={sortValues}
               onToggle={toggleCategory}
               onSelect={handleSelect}
             />

@@ -219,6 +219,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               onChange={setFromAccountId}
               label="选择转出账户"
               excludeId={toAccountId || undefined}
+              sortMode="recentTransferSource"
             />
           </div>
           <div className="space-y-2">
@@ -228,6 +229,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               onChange={setToAccountId}
               label="选择转入账户"
               excludeId={fromAccountId || undefined}
+              sortMode="recentTransferTarget"
             />
           </div>
 
@@ -289,7 +291,17 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         <>
           <div className="space-y-2">
             <label className="text-sm font-medium">账户</label>
-            <AccountPicker value={accountId || null} onChange={setAccountId} />
+            <AccountPicker
+              value={accountId || null}
+              onChange={setAccountId}
+              sortMode={
+                kind === "adjustment"
+                  ? "recentAdjustment"
+                  : effect === "decrease"
+                    ? "recentExpense"
+                    : "recentIncome"
+              }
+            />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">方向</label>
