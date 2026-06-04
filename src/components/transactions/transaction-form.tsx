@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AmountInput } from "@/components/shared/amount-input"
+import { AmountInput, type AmountInputStatus } from "@/components/shared/amount-input"
 import { AccountPicker } from "@/components/shared/account-picker"
 import { operationService } from "@/lib/services/operation-service"
 import { useAccount } from "@/lib/hooks/use-accounts"
@@ -15,6 +15,26 @@ import { toast } from "sonner"
 import type { OperationWithEntries, EntryEffect } from "@/types"
 
 type FormKind = "normal" | "transfer" | "adjustment"
+
+function getAmountError(label: string, cents: number, status: AmountInputStatus | null): string | null {
+  if (!status) {
+    return cents <= 0 ? `请输入${label}` : null
+  }
+
+  if (!status.hasInput) {
+    return `请输入${label}`
+  }
+
+  if (status.error) {
+    return `${label}${status.error}`
+  }
+
+  if (!status.isValid) {
+    return `${label}算式格式不正确`
+  }
+
+  return null
+}
 
 interface TransactionFormProps {
   mode: "create" | "edit"
@@ -42,12 +62,15 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   const [accountId, setAccountId] = useState(sourceEntry?.accountId ?? "")
   const [effect, setEffect] = useState<EntryEffect>(sourceEntry?.effect ?? "decrease")
   const [amount, setAmount] = useState(sourceEntry?.amount ?? 0)
+  const [amountStatus, setAmountStatus] = useState<AmountInputStatus | null>(null)
 
   // Transfer state
   const [fromAccountId, setFromAccountId] = useState(sourceEntry?.accountId ?? "")
   const [toAccountId, setToAccountId] = useState(targetEntry?.accountId ?? "")
   const [fromAmount, setFromAmount] = useState(sourceEntry?.amount ?? 0)
   const [toAmount, setToAmount] = useState(targetEntry?.amount ?? 0)
+  const [fromAmountStatus, setFromAmountStatus] = useState<AmountInputStatus | null>(null)
+  const [toAmountStatus, setToAmountStatus] = useState<AmountInputStatus | null>(null)
   const [hasFee, setHasFee] = useState(() => {
     // Auto-detect: if editing a same-currency transfer with different amounts, fee mode is on
     if (sourceEntry && targetEntry && sourceEntry.amount !== targetEntry.amount) return true
@@ -109,13 +132,17 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           setLoading(false)
           return
         }
-        if (fromAmount <= 0) {
-          toast.error("请输入转出金额")
+        const fromAmountError = getAmountError("转出金额", fromAmount, fromAmountStatus)
+        if (fromAmountError) {
+          toast.error(fromAmountError)
           setLoading(false)
           return
         }
-        if (showDualAmounts && toAmount <= 0) {
-          toast.error("请输入转入金额")
+        const toAmountError = showDualAmounts
+          ? getAmountError("转入金额", toAmount, toAmountStatus)
+          : null
+        if (toAmountError) {
+          toast.error(toAmountError)
           setLoading(false)
           return
         }
@@ -147,8 +174,9 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           setLoading(false)
           return
         }
-        if (amount <= 0) {
-          toast.error("请输入金额")
+        const amountError = getAmountError("金额", amount, amountStatus)
+        if (amountError) {
+          toast.error(amountError)
           setLoading(false)
           return
         }
@@ -240,13 +268,25 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                 <label className="text-sm font-medium">
                   转出金额 ({getCurrencySymbol(fromCurrency)})
                 </label>
-                <AmountInput value={fromAmount} onChange={setFromAmount} currency={fromCurrency} />
+                <AmountInput
+                  value={fromAmount}
+                  onChange={setFromAmount}
+                  currency={fromCurrency}
+                  enableExpression
+                  onStatusChange={setFromAmountStatus}
+                />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   转入金额 ({getCurrencySymbol(toCurrency)})
                 </label>
-                <AmountInput value={toAmount} onChange={setToAmount} currency={toCurrency} />
+                <AmountInput
+                  value={toAmount}
+                  onChange={setToAmount}
+                  currency={toCurrency}
+                  enableExpression
+                  onStatusChange={setToAmountStatus}
+                />
               </div>
               {fxDisplay && (
                 <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
@@ -267,6 +307,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                   value={fromAmount}
                   onChange={(v) => { setFromAmount(v); setToAmount(v) }}
                   currency={fromCurrency}
+                  enableExpression
+                  onStatusChange={setFromAmountStatus}
                 />
               </div>
               {/* Fee toggle for same-currency transfers */}
@@ -327,7 +369,13 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
 
           <div className="space-y-2">
             <label className="text-sm font-medium">金额</label>
-            <AmountInput value={amount} onChange={setAmount} currency={singleCurrency} />
+            <AmountInput
+              value={amount}
+              onChange={setAmount}
+              currency={singleCurrency}
+              enableExpression
+              onStatusChange={setAmountStatus}
+            />
           </div>
         </>
       )}
