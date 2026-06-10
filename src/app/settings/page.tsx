@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/layout/page-header"
 import { WechatCTA } from "@/components/shared/wechat-cta"
+import { SupportCTA } from "@/components/shared/support-cta"
 import { backupService } from "@/lib/services/backup-service"
 import { resetAllData } from "@/lib/db/seed"
 import { toast } from "sonner"
@@ -170,6 +171,9 @@ export default function SettingsPage() {
 
         {/* WeChat CTA */}
         <WechatCTA />
+
+        {/* Support / donation CTA */}
+        <SupportCTA />
 
         {/* App info */}
         <div className="text-center text-xs text-muted-foreground pt-4">
