@@ -25,6 +25,14 @@
 - **PWA + iOS** — 添加到主屏幕即原生体验，支持离线使用
 - **数据自由** — JSON 全量备份/恢复，CSV 流水导出，随时带走你的数据
 
+## 截图
+
+| 总览 | 账户 | 流水 |
+|---|---|---|
+| ![总览](promo/screenshots/01-dashboard.png) | ![账户](promo/screenshots/02-accounts.png) | ![流水](promo/screenshots/03-transactions.png) |
+
+*截图为演示数据 / Screenshots show demo data*
+
 ## 技术栈
 
 Next.js 16 (App Router, 静态导出) · TypeScript · Tailwind CSS · shadcn/ui (@base-ui) · Dexie.js (IndexedDB) · Recharts · Capacitor (iOS)
