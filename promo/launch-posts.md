@@ -150,6 +150,27 @@ Open source: https://github.com/xueyuanhuang/balancesheet
 
 ---
 
+## 7. 微信群 /朋友圈（熟人渠道，转化率最高）
+
+**AI 小作坊群版：**
+
+各位，「净值」正式上线了 🎉
+
+就是之前预告过的那个个人资产负债表工具：多币种记净资产、趋势图、复式记账，数据全在本地不上云。
+
+👉 https://balancesheet-cnt.pages.dev （打开就能用，免注册）
+
+这个项目完全免费开源无广告。如果觉得有用，两件事帮到我：
+1. 转发给可能需要的朋友 / GitHub 点个 star：https://github.com/xueyuanhuang/balancesheet
+2. 手头有 U 的朋友，可以请我喝杯咖啡 ☕（USDT/USDC/ETH 都行，以太坊、Base、Arbitrum 任意链）：
+   0x9f14F10E511b2772cc63E5667a012cEA09CECf86
+
+有任何 bug 或想要的功能直接群里喊我，当天修。
+
+**朋友圈版（配 promo/screenshots/ 里的截图）：**
+
+花了几个周末做的「净值」上线了：一个数据完全不上云的个人资产负债表 App。多币种、净资产趋势、隐私模式，打开网页就能用，免注册免下载。链接在评论区,觉得有用请帮我转发 🙏
+
 ## 发布注意事项
 
 - **V2EX**：工作日上午 10 点或下午 3 点发，发完头几条回复要快，被顶上首页全靠前 2 小时互动
