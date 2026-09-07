@@ -1,5 +1,6 @@
 "use client"
 
+import { Fragment } from "react"
 import Link from "next/link"
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Settings2 } from "lucide-react"
 import { AmountDisplay } from "@/components/shared/amount-display"
@@ -69,16 +70,15 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   const kindLabel = KIND_LABELS[operation.kind] ?? "未知"
   const primaryText = operation.description || kindLabel
 
-  // Secondary text
-  let secondaryText = ""
-  if (isMultiEntry) {
-    const fromName = sourceAccount?.name ?? ""
-    const toName = targetAccount?.name ?? ""
-    secondaryText = `${fromName} → ${toName}`
-  } else {
-    secondaryText = sourceAccount?.name ?? ""
-  }
-  secondaryText += ` · ${formatDateTime(operation.occurredAt)}`
+  const relatedAccounts = isMultiEntry ? [sourceAccount, targetAccount] : [sourceAccount]
+  const editLabel = [
+    "编辑流水",
+    primaryText,
+    relatedAccounts.map((account) => account?.name ?? "未知账户").join(" → "),
+    formatDateTime(operation.occurredAt),
+    sourceEntry ? formatAmount(sourceEntry.amount, sourceAccount?.currency) : "",
+    targetEntry ? formatAmount(targetEntry.amount, targetAccount?.currency) : "",
+  ].filter(Boolean).join("，")
 
   // Amount display
   const isCrossCurrency = isMultiEntry && sourceEntry && targetEntry &&
@@ -120,20 +120,20 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   })()
 
   return (
-    <Link href={`/transactions/edit?id=${operation.id}`}>
-      <div className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
-        <div className={cn("shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{primaryText}</span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-0.5 truncate">
-            {secondaryText}
-          </div>
-        </div>
-        <div className="text-right shrink-0 flex flex-col items-end">
+    <div className="relative isolate grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
+      <div className={cn("row-span-2 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex items-start justify-between gap-2">
+        {/* The edit link covers the row; account links sit above it. */}
+        <Link
+          href={`/transactions/edit?id=${operation.id}`}
+          aria-label={editLabel}
+          className="min-w-0 min-h-0 text-sm font-medium truncate after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+        >
+          {primaryText}
+        </Link>
+        <div className="min-w-0 max-w-[65%] text-right flex flex-col items-end">
           {isSingleEntry && sourceEntry ? (
             <AmountDisplay
               cents={
@@ -167,12 +167,32 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
             )
           ) : null}
           {balanceText && (
-            <span className="text-xs tabular-nums text-muted-foreground mt-0.5">
+            <span className="max-w-full text-xs tabular-nums text-muted-foreground mt-0.5 wrap-anywhere">
               {balanceText}
             </span>
           )}
         </div>
       </div>
-    </Link>
+      <div className="col-start-2 min-w-0 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground mt-0.5">
+        {relatedAccounts.map((account, index) => (
+          <Fragment key={index}>
+            {index > 0 && <span aria-hidden="true">→</span>}
+            {account ? (
+              <Link
+                href={`/accounts/detail?id=${account.id}`}
+                aria-label={`查看账户：${account.name}`}
+                title={account.name}
+                className="relative z-10 inline-flex items-center max-w-full py-1 rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="truncate">{account.name}</span>
+              </Link>
+            ) : (
+              <span>未知账户</span>
+            )}
+          </Fragment>
+        ))}
+        <span>· {formatDateTime(operation.occurredAt)}</span>
+      </div>
+    </div>
   )
 }
