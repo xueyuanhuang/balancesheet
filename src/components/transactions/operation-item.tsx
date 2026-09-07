@@ -120,78 +120,85 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   })()
 
   return (
-    <div className="relative isolate grid grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-x-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
-      <div className={cn("row-span-2 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
+    <div className="relative isolate flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
+      <div className={cn("shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
         <Icon className="h-4 w-4" />
       </div>
-      <div className="min-w-0 flex items-start justify-between gap-2">
+      <div className="flex-1 min-w-0">
         {/* The edit link covers the row; account links sit above it. */}
         <Link
           href={`/transactions/edit?id=${operation.id}`}
           aria-label={editLabel}
-          className="min-w-0 min-h-0 text-sm font-medium truncate after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+          className="block min-w-0 min-h-0 text-sm font-medium truncate after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
           {primaryText}
         </Link>
-        <div className="min-w-0 max-w-[65%] text-right flex flex-col items-end">
-          {isSingleEntry && sourceEntry ? (
-            <AmountDisplay
-              cents={
-                (isSourceLiability
-                  ? sourceEntry.effect === "decrease"  // liability decrease = debt reduced = positive
-                  : sourceEntry.effect === "increase"  // asset increase = income = positive
-                ) ? sourceEntry.amount : -sourceEntry.amount
-              }
-              size="sm"
-              colorize
-              currency={sourceAccount?.currency}
-            />
-          ) : isMultiEntry && sourceEntry && targetEntry ? (
-            isCrossCurrency || hasFee ? (
-              <>
-                <span className="text-sm tabular-nums text-red-500">
-                  {formatAmount(-sourceEntry.amount, sourceAccount!.currency)}
-                </span>
-                <span className="text-xs tabular-nums text-emerald-600">
-                  {operation.kind === "liability_repayment"
-                    ? formatAmount(-targetEntry.amount, targetAccount!.currency)
-                    : formatAmount(targetEntry.amount, targetAccount!.currency)}
-                </span>
-              </>
-            ) : (
-              <AmountDisplay
-                cents={sourceEntry.amount}
-                size="sm"
-                currency={sourceAccount?.currency}
-              />
-            )
-          ) : null}
-          {balanceText && (
-            <span className="max-w-full text-xs tabular-nums text-muted-foreground mt-0.5 wrap-anywhere">
-              {balanceText}
-            </span>
-          )}
+        <div className="flex items-center min-w-0 text-xs text-muted-foreground mt-0.5">
+          <span className={cn(
+            "items-center gap-1 min-w-0 max-w-full shrink-0",
+            isMultiEntry ? "grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" : "flex"
+          )}>
+            {relatedAccounts.map((account, index) => (
+              <Fragment key={index}>
+                {index > 0 && <span className="shrink-0" aria-hidden="true">→</span>}
+                {account ? (
+                  <Link
+                    href={`/accounts/detail?id=${account.id}`}
+                    aria-label={`查看账户：${account.name}`}
+                    title={account.name}
+                    className="relative z-10 min-w-0 min-h-0 truncate rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {account.name}
+                  </Link>
+                ) : (
+                  <span className="truncate">未知账户</span>
+                )}
+              </Fragment>
+            ))}
+          </span>
+          <span className="ml-1 truncate" title={formatDateTime(operation.occurredAt)}>
+            · {formatDateTime(operation.occurredAt)}
+          </span>
         </div>
       </div>
-      <div className="col-start-2 min-w-0 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground mt-0.5">
-        {relatedAccounts.map((account, index) => (
-          <Fragment key={index}>
-            {index > 0 && <span aria-hidden="true">→</span>}
-            {account ? (
-              <Link
-                href={`/accounts/detail?id=${account.id}`}
-                aria-label={`查看账户：${account.name}`}
-                title={account.name}
-                className="relative z-10 inline-flex items-center max-w-full py-1 rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="truncate">{account.name}</span>
-              </Link>
-            ) : (
-              <span>未知账户</span>
-            )}
-          </Fragment>
-        ))}
-        <span>· {formatDateTime(operation.occurredAt)}</span>
+      <div className="min-w-0 max-w-[50%] shrink-0 text-right flex flex-col items-end">
+        {isSingleEntry && sourceEntry ? (
+          <AmountDisplay
+            cents={
+              (isSourceLiability
+                ? sourceEntry.effect === "decrease"  // liability decrease = debt reduced = positive
+                : sourceEntry.effect === "increase"  // asset increase = income = positive
+              ) ? sourceEntry.amount : -sourceEntry.amount
+            }
+            size="sm"
+            colorize
+            currency={sourceAccount?.currency}
+          />
+        ) : isMultiEntry && sourceEntry && targetEntry ? (
+          isCrossCurrency || hasFee ? (
+            <>
+              <span className="text-sm tabular-nums text-red-500">
+                {formatAmount(-sourceEntry.amount, sourceAccount!.currency)}
+              </span>
+              <span className="text-xs tabular-nums text-emerald-600">
+                {operation.kind === "liability_repayment"
+                  ? formatAmount(-targetEntry.amount, targetAccount!.currency)
+                  : formatAmount(targetEntry.amount, targetAccount!.currency)}
+              </span>
+            </>
+          ) : (
+            <AmountDisplay
+              cents={sourceEntry.amount}
+              size="sm"
+              currency={sourceAccount?.currency}
+            />
+          )
+        ) : null}
+        {balanceText && (
+          <span className="max-w-full text-xs tabular-nums text-muted-foreground mt-0.5 wrap-anywhere">
+            {balanceText}
+          </span>
+        )}
       </div>
     </div>
   )
