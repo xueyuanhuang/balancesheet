@@ -32,18 +32,18 @@ export default function SettingsPage() {
   const handleExportJSON = async () => {
     try {
       await backupService.exportJSON()
-      toast.success("JSON 备份已下载")
+      toast.success("JSON backup downloaded")
     } catch {
-      toast.error("导出失败")
+      toast.error("Export failed")
     }
   }
 
   const handleExportCSV = async () => {
     try {
       await backupService.exportCSV()
-      toast.success("CSV 已下载")
+      toast.success("CSV downloaded")
     } catch {
-      toast.error("导出失败")
+      toast.error("Export failed")
     }
   }
 
@@ -62,12 +62,12 @@ export default function SettingsPage() {
     try {
       const result = await backupService.importJSON(selectedFile)
       toast.success(
-        `导入成功：${result.categories} 个分类、${result.accounts} 个账户、${result.operations} 条操作`
+        `Imported ${result.categories} categories, ${result.accounts} accounts, and ${result.operations} transactions`
       )
       setImportDialogOpen(false)
       setSelectedFile(null)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "导入失败")
+      toast.error(err instanceof Error ? err.message : "Import failed")
     } finally {
       setImporting(false)
     }
@@ -75,7 +75,7 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="设置" />
+      <PageHeader title="Settings" />
       <div className="p-4 space-y-4">
         {/* Category management */}
         <Card>
@@ -83,7 +83,7 @@ export default function SettingsPage() {
             <Link href="/categories" className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
                 <FolderTree className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">分类管理</span>
+                <span className="text-sm font-medium">Categories</span>
               </div>
               <span className="text-muted-foreground text-sm">&rarr;</span>
             </Link>
@@ -96,7 +96,7 @@ export default function SettingsPage() {
             <Link href="/settings/exchange-rates" className="flex items-center justify-between py-2">
               <div className="flex items-center gap-3">
                 <RefreshCw className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm font-medium">汇率管理</span>
+                <span className="text-sm font-medium">Exchange rates</span>
               </div>
               <span className="text-muted-foreground text-sm">&rarr;</span>
             </Link>
@@ -106,7 +106,7 @@ export default function SettingsPage() {
         {/* Data management */}
         <Card>
           <CardContent className="pt-6 space-y-1">
-            <h3 className="text-sm font-medium mb-3">数据管理</h3>
+            <h3 className="text-sm font-medium mb-3">Data management</h3>
 
             <button
               onClick={handleExportJSON}
@@ -114,8 +114,8 @@ export default function SettingsPage() {
             >
               <Download className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <div className="text-sm">导出 JSON 备份</div>
-                <div className="text-xs text-muted-foreground">完整数据备份，可用于恢复</div>
+                <div className="text-sm">Export JSON backup</div>
+                <div className="text-xs text-muted-foreground">A complete backup you can restore later</div>
               </div>
             </button>
 
@@ -125,8 +125,8 @@ export default function SettingsPage() {
             >
               <Download className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <div className="text-sm">导出 CSV 流水</div>
-                <div className="text-xs text-muted-foreground">交易流水表格，可用 Excel 打开</div>
+                <div className="text-sm">Export transactions as CSV</div>
+                <div className="text-xs text-muted-foreground">Transaction spreadsheet for Excel and other apps</div>
               </div>
             </button>
 
@@ -138,8 +138,8 @@ export default function SettingsPage() {
             >
               <Upload className="h-5 w-5 text-muted-foreground" />
               <div className="text-left">
-                <div className="text-sm">导入 JSON 备份</div>
-                <div className="text-xs text-muted-foreground">将覆盖现有所有数据</div>
+                <div className="text-sm">Import JSON backup</div>
+                <div className="text-xs text-muted-foreground">Replaces all existing data</div>
               </div>
             </button>
 
@@ -162,8 +162,8 @@ export default function SettingsPage() {
             >
               <Trash2 className="h-5 w-5 text-destructive" />
               <div className="text-left">
-                <div className="text-sm text-destructive">重置所有数据</div>
-                <div className="text-xs text-muted-foreground">清空所有分类、账户和流水，重新开始</div>
+                <div className="text-sm text-destructive">Reset all data</div>
+                <div className="text-xs text-muted-foreground">Clear categories, accounts, and transactions to start over</div>
               </div>
             </button>
           </CardContent>
@@ -177,7 +177,7 @@ export default function SettingsPage() {
 
         {/* App info */}
         <div className="text-center text-xs text-muted-foreground pt-4">
-          净值 v0.3.0
+          Net Worth v0.3.0
         </div>
       </div>
 
@@ -187,15 +187,15 @@ export default function SettingsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              重置所有数据
+              Reset all data
             </DialogTitle>
             <DialogDescription>
-              这将清除所有分类、账户和流水记录，App 将回到初始状态。此操作不可撤销，建议先导出备份。
+              This clears all categories, accounts, and transactions and returns the app to its initial state. This cannot be undone. Export a backup first.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
-              取消
+              Cancel
             </Button>
             <Button
               variant="destructive"
@@ -204,15 +204,15 @@ export default function SettingsPage() {
                 setResetting(true)
                 try {
                   await resetAllData()
-                  toast.success("已重置，即将重新加载...")
+                  toast.success("Data reset. Reloading...")
                   setTimeout(() => window.location.reload(), 500)
                 } catch {
-                  toast.error("重置失败")
+                  toast.error("Reset failed")
                   setResetting(false)
                 }
               }}
             >
-              {resetting ? "重置中..." : "确认重置"}
+              {resetting ? "Resetting..." : "Reset data"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -224,18 +224,18 @@ export default function SettingsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-destructive" />
-              确认导入
+              Import backup
             </DialogTitle>
             <DialogDescription>
-              导入将清除现有所有数据（分类、账户、流水），并用备份文件中的数据替换。此操作不可撤销。
+              Importing replaces all existing data with the backup, including categories, accounts, transactions, and snapshots. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
-              取消
+              Cancel
             </Button>
             <Button variant="destructive" onClick={handleImport} disabled={importing}>
-              {importing ? "导入中..." : "确认导入"}
+              {importing ? "Importing..." : "Import backup"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -133,7 +133,7 @@ db.version(12).stores({
 })
 
 // v13: Fix liability account entries — flip effects for normal/adjustment operations
-// on liability accounts so that "支出" correctly increases the debt balance.
+// on liability accounts so that "Expense" correctly increases the debt balance.
 db.version(13).stores({
   categories: "id, type, parentId, sortOrder, isArchived",
   accounts: "id, categoryId, isArchived, sortOrder",

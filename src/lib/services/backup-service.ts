@@ -37,15 +37,13 @@ export const backupService = {
 
   /** Export operations as CSV */
   async exportCSV(): Promise<void> {
-    const [operations, entries, accounts, categories] = await Promise.all([
+    const [operations, entries, accounts] = await Promise.all([
       db.operations.orderBy("occurredAt").reverse().toArray(),
       db.entries.toArray(),
       db.accounts.toArray(),
-      db.categories.toArray(),
     ])
 
     const accountMap = new Map(accounts.map((a) => [a.id, a]))
-    const categoryMap = new Map(categories.map((c) => [c.id, c]))
     const entryMap = new Map<string, typeof entries>()
     for (const entry of entries) {
       const list = entryMap.get(entry.operationId) ?? []
@@ -54,15 +52,15 @@ export const backupService = {
     }
 
     const kindLabels: Record<string, string> = {
-      normal: "普通",
-      transfer: "转账",
-      fx_transfer: "外汇转账",
-      liability_repayment: "还款",
-      liability_drawdown: "借款",
-      adjustment: "调整",
+      normal: "General",
+      transfer: "Transfer",
+      fx_transfer: "Currency exchange",
+      liability_repayment: "Repayment",
+      liability_drawdown: "Borrowing",
+      adjustment: "Adjustment",
     }
 
-    const header = "日期,类型,描述,账户1,方向1,金额1,账户2,方向2,金额2\n"
+    const header = "Date,Type,Description,Account 1,Effect 1,Amount 1,Account 2,Effect 2,Amount 2\n"
     const rows = operations.map((op) => {
       const opEntries = entryMap.get(op.id) ?? []
       const source = opEntries.find((e) => e.role === "source")
@@ -73,13 +71,12 @@ export const backupService = {
       const desc = op.description.replace(/"/g, '""')
 
       const sourceAccount = source ? accountMap.get(source.accountId) : undefined
-      const sourceCategory = sourceAccount ? categoryMap.get(sourceAccount.categoryId) : undefined
       const sourceAmount = source ? formatAmount(source.amount, sourceAccount?.currency) : ""
-      const sourceEffect = source?.effect === "increase" ? "增加" : source?.effect === "decrease" ? "减少" : ""
+      const sourceEffect = source?.effect === "increase" ? "Increase" : source?.effect === "decrease" ? "Decrease" : ""
 
       const targetAccount = target ? accountMap.get(target.accountId) : undefined
       const targetAmount = target ? formatAmount(target.amount, targetAccount?.currency) : ""
-      const targetEffect = target?.effect === "increase" ? "增加" : target?.effect === "decrease" ? "减少" : ""
+      const targetEffect = target?.effect === "increase" ? "Increase" : target?.effect === "decrease" ? "Decrease" : ""
 
       return `"${date}","${kind}","${desc}","${sourceAccount?.name ?? ""}","${sourceEffect}","${sourceAmount}","${targetAccount?.name ?? ""}","${targetEffect}","${targetAmount}"`
     })
@@ -102,12 +99,12 @@ export const backupService = {
     try {
       parsed = JSON.parse(text)
     } catch {
-      throw new Error("无效的 JSON 文件")
+      throw new Error("Invalid JSON file")
     }
 
     const result = backupSchema.safeParse(parsed)
     if (!result.success) {
-      throw new Error("备份文件格式不正确")
+      throw new Error("Invalid backup format")
     }
 
     const data = result.data

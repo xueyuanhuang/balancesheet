@@ -6,7 +6,7 @@ import { AccountForm } from "@/components/accounts/account-form"
 export default function NewAccountPage() {
   return (
     <div>
-      <PageHeader title="新建账户" showBack />
+      <PageHeader title="New account" showBack />
       <AccountForm mode="create" />
     </div>
   )

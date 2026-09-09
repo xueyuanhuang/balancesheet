@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { format, subDays, subMonths, subYears } from "date-fns"
-import { zhCN } from "date-fns/locale"
+import { enUS } from "date-fns/locale"
 import { Area, AreaChart, XAxis, YAxis, CartesianGrid } from "recharts"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
@@ -20,20 +20,20 @@ import { cn } from "@/lib/utils"
 import type { NetWorthSnapshot } from "@/types"
 
 const RANGES = [
-  { label: "1天", days: 1 },
-  { label: "1周", days: 7 },
-  { label: "1月", days: 30 },
-  { label: "3月", days: 90 },
-  { label: "1年", days: 365 },
-  { label: "全部", days: 0 },
+  { label: "1D", days: 1 },
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "3M", days: 90 },
+  { label: "1Y", days: 365 },
+  { label: "All", days: 0 },
 ] as const
 
 type MetricType = "netWorth" | "totalAssets" | "totalLiabilities"
 
 const METRICS: { key: MetricType; label: string }[] = [
-  { key: "netWorth", label: "净资产" },
-  { key: "totalAssets", label: "总资产" },
-  { key: "totalLiabilities", label: "总负债" },
+  { key: "netWorth", label: "Net worth" },
+  { key: "totalAssets", label: "Assets" },
+  { key: "totalLiabilities", label: "Liabilities" },
 ]
 
 const METRIC_COLORS: Record<MetricType, { light: string; dark: string; stroke: string }> = {
@@ -56,11 +56,10 @@ const METRIC_COLORS: Record<MetricType, { light: string; dark: string; stroke: s
 
 function formatYAxis(cents: number): string {
   const yuan = cents / 100
-  const abs = Math.abs(yuan)
-  if (abs >= 10000) {
-    return `${(yuan / 10000).toFixed(1)}万`
-  }
-  return yuan.toLocaleString("zh-CN", { maximumFractionDigits: 0 })
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(yuan)
 }
 
 function parseSnapshotDate(dateStr: string): Date {
@@ -79,7 +78,7 @@ function getXAxisFormat(days: number): (date: string) => string {
   if (days > 0 && days <= 90) {
     return (date: string) => format(parseSnapshotDate(date), "M/d")
   }
-  return (date: string) => format(parseSnapshotDate(date), "M月", { locale: zhCN })
+  return (date: string) => format(parseSnapshotDate(date), "MMM", { locale: enUS })
 }
 
 /** Convert a snapshot to CNY values */
@@ -167,11 +166,11 @@ export function NetWorthChart({ privacyMode = false }: NetWorthChartProps) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <div className="text-sm font-medium">趋势</div>
+          <div className="text-sm font-medium">Trend</div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            暂无历史数据，每次打开总览页会自动记录
+            No history yet. Snapshots are saved when you visit Overview.
           </div>
         </CardContent>
       </Card>
@@ -182,11 +181,11 @@ export function NetWorthChart({ privacyMode = false }: NetWorthChartProps) {
     return (
       <Card>
         <CardHeader className="pb-2">
-          <div className="text-sm font-medium">趋势</div>
+          <div className="text-sm font-medium">Trend</div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            数据不足，多打开几次总览页即可看到趋势
+            Visit Overview again in a later hour to start seeing your trend.
           </div>
         </CardContent>
       </Card>
@@ -196,7 +195,7 @@ export function NetWorthChart({ privacyMode = false }: NetWorthChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2 space-y-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Metric tabs */}
           <div className="flex gap-1 bg-muted rounded-lg p-0.5">
             {METRICS.map((m) => (
@@ -268,7 +267,7 @@ export function NetWorthChart({ privacyMode = false }: NetWorthChartProps) {
                   <ChartTooltipContent
                     labelFormatter={(_, payload) => {
                       if (!payload?.[0]?.payload?.date) return ""
-                      return format(parseSnapshotDate(payload[0].payload.date), "yyyy年M月d日 HH:mm", { locale: zhCN })
+                      return format(parseSnapshotDate(payload[0].payload.date), "MMM d, yyyy HH:mm", { locale: enUS })
                     }}
                     formatter={(value) => formatAmount(value as number)}
                     hideIndicator

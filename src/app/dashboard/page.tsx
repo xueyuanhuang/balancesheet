@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/layout/page-header"
 import { NetWorthCard } from "@/components/dashboard/net-worth-card"
 import { NetWorthChart } from "@/components/dashboard/net-worth-chart"
+import { MonthlyCashFlowChart } from "@/components/dashboard/monthly-cash-flow-chart"
 import { AssetSummary } from "@/components/dashboard/asset-summary"
 import { LiabilitySummary } from "@/components/dashboard/liability-summary"
 import { useBalanceSheet } from "@/lib/hooks/use-balance-sheet"
@@ -35,9 +36,9 @@ export default function DashboardPage() {
   return (
     <div className={privacyMode ? "privacy-mode" : ""}>
       <PageHeader
-        title="总览"
+        title="Overview"
         rightAction={
-          <Button variant="ghost" size="icon" onClick={togglePrivacy}>
+          <Button variant="ghost" size="icon" aria-label={privacyMode ? "Show amounts" : "Hide amounts"} onClick={togglePrivacy}>
             {privacyMode ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </Button>
         }
@@ -49,6 +50,7 @@ export default function DashboardPage() {
           totalAssets={totalAssets}
           totalLiabilities={totalLiabilities}
         />
+        <MonthlyCashFlowChart privacyMode={privacyMode} />
 
         {hasAccounts ? (
           <>
@@ -58,13 +60,13 @@ export default function DashboardPage() {
         ) : (
           <div className="text-center py-12 space-y-4">
             <p className="text-muted-foreground text-sm">
-              还没有任何账户，开始创建你的第一个账户吧
+              Create your first account to start tracking your net worth.
             </p>
             <div className="flex gap-3 justify-center">
               <Link href="/accounts/new">
                 <Button>
                   <Plus className="h-4 w-4 mr-1" />
-                  创建账户
+                  Create account
                 </Button>
               </Link>
             </div>

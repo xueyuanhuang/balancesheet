@@ -1,15 +1,15 @@
 import { z } from "zod/v4"
 
 export const categorySchema = z.object({
-  name: z.string().min(1, "分类名称不能为空").max(20, "分类名称不超过20个字符"),
+  name: z.string().min(1, "Enter a category name").max(20, "Use no more than 20 characters for the category name"),
   type: z.enum(["asset", "liability"]),
   parentId: z.string().nullable(),
 })
 
 export const accountSchema = z.object({
-  name: z.string().min(1, "账户名称不能为空").max(30, "账户名称不超过30个字符"),
-  categoryId: z.string().min(1, "请选择分类"),
-  openingBalance: z.number().int("金额必须为整数（分）"),
+  name: z.string().min(1, "Enter an account name").max(30, "Use no more than 30 characters for the account name"),
+  categoryId: z.string().min(1, "Select a category"),
+  openingBalance: z.number().int("The amount must be a whole number of cents"),
   currency: z.string().default("CNY"),
   note: z.string().default(""),
 })

@@ -16,9 +16,9 @@ export default function ExchangeRatesPage() {
     setRefreshing(true)
     try {
       await exchangeRateService.fetchRates()
-      toast.success("汇率已更新")
+      toast.success("Exchange rates updated")
     } catch {
-      toast.error("汇率更新失败，请检查网络")
+      toast.error("Could not update rates. Check your connection.")
     } finally {
       setRefreshing(false)
     }
@@ -27,12 +27,13 @@ export default function ExchangeRatesPage() {
   return (
     <div>
       <PageHeader
-        title="汇率"
+        title="Exchange rates"
         showBack
         rightAction={
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Refresh exchange rates"
             disabled={refreshing}
             onClick={handleRefresh}
           >
@@ -43,7 +44,7 @@ export default function ExchangeRatesPage() {
       <div className="p-4 space-y-1">
         {exchangeRates.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-8">
-            暂无汇率数据，点右上角刷新获取
+            No exchange rates yet. Tap Refresh to load them.
           </p>
         ) : (
           exchangeRates.map((r) => (
@@ -55,7 +56,7 @@ export default function ExchangeRatesPage() {
               <div className="text-right">
                 <span className="text-sm tabular-nums">= ¥{r.rateToCNY.toFixed(4)}</span>
                 <span className="text-xs text-muted-foreground ml-3">
-                  {new Date(r.updatedAt).toLocaleDateString("zh-CN")}
+                  {new Date(r.updatedAt).toLocaleDateString("en-US")}
                 </span>
               </div>
             </div>

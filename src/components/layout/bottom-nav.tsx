@@ -7,10 +7,10 @@ import { LayoutDashboard, Wallet, Plus, ArrowLeftRight, Settings } from "lucide-
 import { cn } from "@/lib/utils"
 
 const tabs = [
-  { href: "/dashboard", label: "总览", icon: LayoutDashboard },
-  { href: "/accounts", label: "账户", icon: Wallet },
-  { href: "/transactions", label: "流水", icon: ArrowLeftRight },
-  { href: "/settings", label: "设置", icon: Settings },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
+  { href: "/accounts", label: "Accounts", icon: Wallet },
+  { href: "/transactions", label: "Activity", icon: ArrowLeftRight },
+  { href: "/settings", label: "Settings", icon: Settings },
 ]
 
 export function BottomNav() {
@@ -28,6 +28,7 @@ export function BottomNav() {
               {index === 2 && (
                 <Link
                   href="/transactions/new"
+                  aria-label="Add transaction"
                   className="flex -mt-6 h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-transform"
                 >
                   <Plus className="h-7 w-7" />

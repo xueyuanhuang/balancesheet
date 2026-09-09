@@ -155,27 +155,27 @@ export const operationService = {
     occurredAt: number
   }): Promise<string> {
     if (data.fromAccountId === data.toAccountId) {
-      throw new Error("转出和转入账户不能相同")
+      throw new Error("Choose different source and destination accounts")
     }
 
     const fromAccount = await db.accounts.get(data.fromAccountId)
     const toAccount = await db.accounts.get(data.toAccountId)
-    if (!fromAccount) throw new Error("转出账户不存在")
-    if (!toAccount) throw new Error("转入账户不存在")
+    if (!fromAccount) throw new Error("Source account not found")
+    if (!toAccount) throw new Error("Destination account not found")
 
     const sameCurrency = fromAccount.currency === toAccount.currency
     const toAmount = data.toAmount ?? data.fromAmount
 
     if (!sameCurrency) {
       if (!data.toAmount || data.toAmount <= 0) {
-        throw new Error("跨币种转账必须指定转入金额")
+        throw new Error("Enter the received amount for a cross-currency transfer")
       }
     }
 
     // Determine kind and effects based on account types
     const fromCategory = await db.categories.get(fromAccount.categoryId)
     const toCategory = await db.categories.get(toAccount.categoryId)
-    if (!fromCategory || !toCategory) throw new Error("账户分类不存在")
+    if (!fromCategory || !toCategory) throw new Error("Account category not found")
 
     const { kind, fromEffect, toEffect } = determineKindAndEffects(
       fromCategory.type,
@@ -250,7 +250,7 @@ export const operationService = {
     }
   ): Promise<void> {
     const existing = await db.operations.get(operationId)
-    if (!existing) throw new Error("操作不存在")
+    if (!existing) throw new Error("Transaction not found")
 
     const oldEntries = await db.entries.where("operationId").equals(operationId).toArray()
     const oldAccountIds = [...new Set(oldEntries.map((e) => e.accountId))]
@@ -272,12 +272,12 @@ export const operationService = {
 
         const fromAccount = await db.accounts.get(fromAccountId)
         const toAccount = await db.accounts.get(toAccountId)
-        if (!fromAccount || !toAccount) throw new Error("账户不存在")
+        if (!fromAccount || !toAccount) throw new Error("Account not found")
 
         const sameCurrency = fromAccount.currency === toAccount.currency
         const fromCategory = await db.categories.get(fromAccount.categoryId)
         const toCategory = await db.categories.get(toAccount.categoryId)
-        if (!fromCategory || !toCategory) throw new Error("账户分类不存在")
+        if (!fromCategory || !toCategory) throw new Error("Account category not found")
 
         const { kind, fromEffect, toEffect } = determineKindAndEffects(
           fromCategory.type,

@@ -15,7 +15,7 @@ export function AssetSummary({ tree, total }: AssetSummaryProps) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">资产</CardTitle>
+          <CardTitle className="text-base">Assets</CardTitle>
           <AmountDisplay cents={total} size="sm" className="text-emerald-600" />
         </div>
       </CardHeader>
@@ -28,7 +28,7 @@ export function AssetSummary({ tree, total }: AssetSummaryProps) {
           </div>
         ) : (
           <div className="py-4 text-center text-sm text-muted-foreground">
-            暂无资产
+            No assets yet
           </div>
         )}
       </CardContent>

@@ -12,55 +12,55 @@ interface SeedCategory {
 
 const defaultCategories: SeedCategory[] = [
   {
-    name: "现金及存款",
+    name: "Cash and deposits",
     type: "asset",
     children: [
-      { name: "现金" },
-      { name: "活期存款" },
-      { name: "定期存款" },
+      { name: "Cash" },
+      { name: "Checking accounts" },
+      { name: "Term deposits" },
     ],
   },
   {
-    name: "投资资产",
+    name: "Investments",
     type: "asset",
     children: [
-      { name: "股票" },
-      { name: "基金" },
-      { name: "债券" },
+      { name: "Stocks" },
+      { name: "Funds" },
+      { name: "Bonds" },
     ],
   },
   {
-    name: "固定资产",
+    name: "Fixed assets",
     type: "asset",
     children: [
-      { name: "房产" },
-      { name: "车辆" },
+      { name: "Property" },
+      { name: "Vehicles" },
     ],
   },
   {
-    name: "其他资产",
+    name: "Other assets",
     type: "asset",
     children: [
-      { name: "应收款项" },
-      { name: "其他" },
+      { name: "Receivables" },
+      { name: "Other" },
     ],
   },
   {
-    name: "短期负债",
+    name: "Short-term liabilities",
     type: "liability",
     children: [
-      { name: "信用卡" },
-      { name: "花呗/白条" },
-      { name: "短期借款" },
+      { name: "Credit cards" },
+      { name: "Buy now, pay later" },
+      { name: "Short-term loans" },
     ],
   },
   {
-    name: "长期负债",
+    name: "Long-term liabilities",
     type: "liability",
     children: [
-      { name: "房贷" },
-      { name: "车贷" },
-      { name: "其他贷款" },
+      { name: "Mortgages" },
+      { name: "Auto loans" },
+      { name: "Other loans" },
     ],
   },
 ]

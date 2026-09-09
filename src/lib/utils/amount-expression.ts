@@ -163,7 +163,7 @@ export function evaluateAmountExpression(raw: string): AmountInputStatus {
       hasInput: true,
       hasResult: false,
       isValid: false,
-      error: "算式不完整",
+      error: "Incomplete expression",
     }
   }
 
@@ -177,15 +177,15 @@ export function evaluateAmountExpression(raw: string): AmountInputStatus {
       hasInput: true,
       hasResult: true,
       isValid: cents > 0,
-      error: cents > 0 ? null : "必须大于 0",
+      error: cents > 0 ? null : "Must be greater than 0",
     }
   } catch (error) {
     const message =
       error instanceof DivideByZeroError
-        ? "不能除以 0"
+        ? "Cannot divide by zero"
         : error instanceof IncompleteExpressionError
-          ? "算式不完整"
-          : "算式格式不正确"
+          ? "Incomplete expression"
+          : "Invalid expression"
 
     return {
       raw,

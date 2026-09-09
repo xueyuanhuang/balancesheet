@@ -12,7 +12,7 @@ export default function NewCategoryPage() {
 
   return (
     <div>
-      <PageHeader title="新建分类" showBack />
+      <PageHeader title="New category" showBack />
       <CategoryForm mode="create" defaultType={type} defaultParentId={parentId} />
     </div>
   )

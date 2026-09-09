@@ -13,15 +13,15 @@ export default function EditAccountPage() {
   if (!account) {
     return (
       <div>
-        <PageHeader title="编辑账户" showBack />
-        <div className="p-4 text-center text-muted-foreground">加载中...</div>
+        <PageHeader title="Edit account" showBack />
+        <div className="p-4 text-center text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
   return (
     <div>
-      <PageHeader title="编辑账户" showBack />
+      <PageHeader title="Edit account" showBack />
       <AccountForm mode="edit" initialData={account} />
     </div>
   )

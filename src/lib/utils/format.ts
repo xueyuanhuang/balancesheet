@@ -1,5 +1,5 @@
 import { format as dateFnsFormat, formatDistanceToNow } from "date-fns"
-import { zhCN } from "date-fns/locale"
+import { enUS } from "date-fns/locale"
 import { getCurrencySymbol } from "./constants"
 
 /**
@@ -9,7 +9,7 @@ import { getCurrencySymbol } from "./constants"
 export function formatAmount(cents: number, currency: string = "CNY"): string {
   const symbol = getCurrencySymbol(currency)
   const yuan = cents / 100
-  const formatted = Math.abs(yuan).toLocaleString("zh-CN", {
+  const formatted = Math.abs(yuan).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
@@ -38,19 +38,19 @@ export function centsToYuan(cents: number): string {
  * Format timestamp to date string
  */
 export function formatDate(timestamp: number, pattern: string = "yyyy-MM-dd"): string {
-  return dateFnsFormat(new Date(timestamp), pattern, { locale: zhCN })
+  return dateFnsFormat(new Date(timestamp), pattern, { locale: enUS })
 }
 
 /**
  * Format timestamp to datetime string
  */
 export function formatDateTime(timestamp: number): string {
-  return dateFnsFormat(new Date(timestamp), "yyyy-MM-dd HH:mm", { locale: zhCN })
+  return dateFnsFormat(new Date(timestamp), "yyyy-MM-dd HH:mm", { locale: enUS })
 }
 
 /**
- * Format timestamp to relative time like "3天前"
+ * Format timestamp to relative time like "3 days ago"
  */
 export function formatRelativeTime(timestamp: number): string {
-  return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: zhCN })
+  return formatDistanceToNow(new Date(timestamp), { addSuffix: true, locale: enUS })
 }

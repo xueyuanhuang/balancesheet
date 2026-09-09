@@ -9,9 +9,9 @@ export function WechatCTA() {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText("_xueyuanhuang")
-      toast.success("微信号已复制")
+      toast.success("WeChat ID copied")
     } catch {
-      toast.error("复制失败，微信号：_xueyuanhuang")
+      toast.error("Could not copy. WeChat ID: _xueyuanhuang")
     }
   }
 
@@ -19,9 +19,9 @@ export function WechatCTA() {
     <Card>
       <CardContent className="pt-6 text-center space-y-3">
         <div>
-          <div className="text-sm font-medium">AI 小作坊</div>
+          <div className="text-sm font-medium">AI Workshop</div>
           <div className="text-xs text-muted-foreground mt-1">
-            用 AI 做的小工具都在这 · 新品尝鲜 · 反馈直达 · 一起共创
+            Explore AI-made tools, try new releases, and share your feedback.
           </div>
         </div>
         <Button
@@ -29,10 +29,10 @@ export function WechatCTA() {
           className="bg-[#07C160] hover:bg-[#06AD56] text-white"
         >
           <MessageCircle className="h-4 w-4 mr-1.5" />
-          复制微信号
+          Copy WeChat ID
         </Button>
         <div className="text-xs text-muted-foreground">
-          添加后备注「小作坊」拉你进群
+          Add the author on WeChat and ask to join the AI Workshop group.
         </div>
       </CardContent>
     </Card>

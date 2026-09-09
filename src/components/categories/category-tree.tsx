@@ -27,7 +27,7 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
     try {
       await categoryService.moveCategory(categoryId, targetParentId, sortIndex)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "移动失败")
+      toast.error(err instanceof Error ? err.message : "Could not move")
     }
   }, [])
 
@@ -40,7 +40,7 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
   if (nodes.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
-        暂无分类
+        No categories yet
       </div>
     )
   }
@@ -74,7 +74,7 @@ export function CategoryTree({ nodes, onArchive, onDelete }: CategoryTreeProps) 
           state.dropPosition === "drop-root" && "border-primary bg-primary/5 text-primary"
         )}
       >
-        拖拽到此处移为顶级分类
+        Drop here to make a top-level category
       </div>
 
       {/* Drag overlay portal */}

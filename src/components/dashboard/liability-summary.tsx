@@ -15,7 +15,7 @@ export function LiabilitySummary({ tree, total }: LiabilitySummaryProps) {
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">负债</CardTitle>
+          <CardTitle className="text-base">Liabilities</CardTitle>
           <AmountDisplay cents={total} size="sm" className="text-red-500" />
         </div>
       </CardHeader>
@@ -28,7 +28,7 @@ export function LiabilitySummary({ tree, total }: LiabilitySummaryProps) {
           </div>
         ) : (
           <div className="py-4 text-center text-sm text-muted-foreground">
-            暂无负债
+            No liabilities yet
           </div>
         )}
       </CardContent>

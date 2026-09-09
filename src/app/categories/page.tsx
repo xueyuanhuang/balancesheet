@@ -45,13 +45,13 @@ export default function CategoriesPage() {
       if (!cat) return
       if (cat.isArchived) {
         await categoryService.restore(id)
-        toast.success("已恢复分类")
+        toast.success("Category restored")
       } else {
         await categoryService.archive(id)
-        toast.success("已归档分类")
+        toast.success("Category archived")
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败")
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     }
   }
 
@@ -68,9 +68,9 @@ export default function CategoriesPage() {
     const cat = categories.find((c) => c.id === id)
     const childCount = categories.filter((c) => c.parentId === id).length
     if (childCount > 0) {
-      setDeleteDescription(`将删除「${cat?.name ?? ""}」及其 ${childCount} 个子分类，此操作不可撤销。`)
+      setDeleteDescription(`Delete “${cat?.name ?? ""}” and its ${childCount} subcategories? This cannot be undone.`)
     } else {
-      setDeleteDescription(`确定要删除「${cat?.name ?? ""}」吗？此操作不可撤销。`)
+      setDeleteDescription(`Delete “${cat?.name ?? ""}”? This cannot be undone.`)
     }
     setDeleteTarget(id)
   }
@@ -80,9 +80,9 @@ export default function CategoriesPage() {
     setDeleting(true)
     try {
       await categoryService.delete(deleteTarget)
-      toast.success("已删除分类")
+      toast.success("Category deleted")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败")
+      toast.error(err instanceof Error ? err.message : "Could not delete")
     } finally {
       setDeleting(false)
       setDeleteTarget(null)
@@ -92,7 +92,7 @@ export default function CategoriesPage() {
   return (
     <div>
       <PageHeader
-        title="分类管理"
+        title="Categories"
         showBack
         rightAction={
           <Link href={`/categories/new?type=${activeTab}`}>
@@ -107,11 +107,11 @@ export default function CategoriesPage() {
           router.replace(`/categories?tab=${v}`, { scroll: false })
         }}>
           <TabsList className="w-full">
-            <TabsTrigger value="asset" className="flex-1">资产</TabsTrigger>
-            <TabsTrigger value="liability" className="flex-1">负债</TabsTrigger>
+            <TabsTrigger value="asset" className="flex-1">Assets</TabsTrigger>
+            <TabsTrigger value="liability" className="flex-1">Liabilities</TabsTrigger>
           </TabsList>
           <p className="text-xs text-muted-foreground mt-3 px-1">
-            长按分类可拖拽排序，拖入其他分类可设为子分类
+            Press and hold to reorder. Drop onto a category to nest it.
           </p>
           <TabsContent value="asset" className="mt-4">
             <CategoryTree
@@ -134,9 +134,9 @@ export default function CategoriesPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
-        title="删除分类"
+        title="Delete category"
         description={deleteDescription}
-        confirmLabel="删除"
+        confirmLabel="Delete"
         variant="destructive"
         loading={deleting}
         onConfirm={confirmDelete}
@@ -146,9 +146,9 @@ export default function CategoriesPage() {
       <Dialog open={blockedInfo.open} onOpenChange={(open) => setBlockedInfo((p) => ({ ...p, open }))}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>无法删除</DialogTitle>
+            <DialogTitle>Cannot delete</DialogTitle>
             <DialogDescription>
-              该分类下有以下账户，需要先处理这些账户才能删除分类：
+              Move or delete the following accounts before deleting this category:
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 my-2">
@@ -159,7 +159,7 @@ export default function CategoriesPage() {
               >
                 <div>
                   <div className="font-medium">{acc.name}</div>
-                  <div className="text-xs text-muted-foreground">分类：{acc.categoryName}</div>
+                  <div className="text-xs text-muted-foreground">Category: {acc.categoryName}</div>
                 </div>
                 <Button
                   variant="outline"
@@ -169,14 +169,14 @@ export default function CategoriesPage() {
                     router.push(`/accounts/edit?id=${acc.id}`)
                   }}
                 >
-                  去编辑
+                  Edit account
                 </Button>
               </div>
             ))}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBlockedInfo((p) => ({ ...p, open: false }))}>
-              知道了
+              Got it
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -16,7 +16,7 @@ export default function MonthlyDetailPage() {
   const items = data.items.filter((i) => i.type === type)
   const total = type === "income" ? data.totalIncome : data.totalExpense
 
-  const title = `${year}年${month + 1}月${type === "income" ? "收入" : "支出"}`
+  const title = `${formatDate(new Date(year, month, 1).getTime(), "MMM yyyy")} ${type === "income" ? "income" : "expenses"}`
   const isIncome = type === "income"
 
   return (
@@ -26,7 +26,7 @@ export default function MonthlyDetailPage() {
         {/* Total */}
         <div className="px-4 mb-4 text-center">
           <div className="text-xs text-muted-foreground">
-            {isIncome ? "总收入" : "总支出"}
+            {isIncome ? "Total income" : "Total expenses"}
           </div>
           <div
             className={`text-2xl font-bold tabular-nums ${
@@ -36,7 +36,7 @@ export default function MonthlyDetailPage() {
             {formatAmount(isIncome ? total : -total)}
           </div>
           <div className="text-xs text-muted-foreground mt-1">
-            共 {items.length} 笔
+            {items.length} {items.length === 1 ? "record" : "records"}
           </div>
         </div>
 
@@ -45,8 +45,10 @@ export default function MonthlyDetailPage() {
           <div className="space-y-0.5">
             {items.map((item) => (
               <Link
-                key={`${item.operationId}-${item.accountName}`}
-                href={`/transactions/edit?id=${item.operationId}`}
+                key={item.id}
+                href={item.operationId
+                  ? `/transactions/edit?id=${item.operationId}`
+                  : `/accounts/detail?id=${item.accountId}`}
               >
                 <div className="flex items-center justify-between py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
                   <div className="min-w-0 flex-1">
@@ -70,7 +72,7 @@ export default function MonthlyDetailPage() {
           </div>
         ) : (
           <div className="text-center text-sm text-muted-foreground py-8">
-            本月暂无{isIncome ? "收入" : "支出"}记录
+            No {isIncome ? "income" : "expenses"} this month
           </div>
         )}
       </div>

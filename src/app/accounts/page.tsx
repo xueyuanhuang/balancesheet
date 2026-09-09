@@ -14,12 +14,12 @@ export default function AccountsPage() {
   return (
     <div>
       <PageHeader
-        title="账户"
+        title="Accounts"
         rightAction={
           <div className="flex items-center gap-1">
             <CurrencyToggle value={displayMode} onChange={setDisplayMode} />
             <Link href="/accounts/new">
-              <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="New account">
                 <Plus className="h-5 w-5" />
               </Button>
             </Link>

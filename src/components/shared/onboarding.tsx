@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { FolderTree, Plus, Sparkles } from "lucide-react"
+import { Plus, Sparkles } from "lucide-react"
 import { seedDefaultCategories, markInitialized } from "@/lib/db/seed"
 
 interface OnboardingProps {
@@ -28,9 +27,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
     <div className="flex min-h-screen flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-xl font-bold">个人资产负债表</h1>
+          <h1 className="text-xl font-bold">Net Worth</h1>
           <p className="text-sm text-muted-foreground">
-            清晰管理你的资产、负债和净资产
+            Track your assets, liabilities, and net worth
           </p>
         </div>
 
@@ -44,9 +43,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 <Sparkles className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <div className="text-sm font-medium">使用推荐分类</div>
+                <div className="text-sm font-medium">Use suggested categories</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  预设常见的资产和负债分类（现金存款、投资、房产、信用卡、贷款等），可随时修改
+                  Start with categories for cash, investments, property, credit cards, and loans. Customize them anytime.
                 </div>
               </div>
             </CardContent>
@@ -61,9 +60,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 <Plus className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <div className="text-sm font-medium">从空白开始</div>
+                <div className="text-sm font-medium">Start from scratch</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  完全自定义，按你自己的方式创建分类
+                  Create and organize your own categories.
                 </div>
               </div>
             </CardContent>
@@ -71,7 +70,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         </div>
 
         {loading && (
-          <div className="text-center text-sm text-muted-foreground">初始化中...</div>
+          <div className="text-center text-sm text-muted-foreground">Setting up...</div>
         )}
       </div>
     </div>

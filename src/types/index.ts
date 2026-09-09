@@ -64,6 +64,21 @@ export interface OperationWithEntries {
   entries: Entry[]
 }
 
+// Activity-only records. Opening balances are derived from accounts, never stored as entries.
+export type ActivityKind = OperationKind | "opening_balance"
+
+export type ActivityItem =
+  | { type: "operation"; id: string; occurredAt: number; data: OperationWithEntries }
+  | { type: "opening_balance"; id: string; occurredAt: number; account: Account }
+
+export interface ActivityFilters {
+  accountId?: string
+  kind?: ActivityKind
+  startDate?: number
+  endDate?: number
+  keyword?: string
+}
+
 // Tree node for category hierarchy
 export interface CategoryTreeNode extends Category {
   children: CategoryTreeNode[]

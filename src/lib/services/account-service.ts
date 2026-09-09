@@ -48,13 +48,13 @@ export const accountService = {
     const updates: Record<string, unknown> = { ...data, updatedAt: Date.now() }
 
     const account = await db.accounts.get(id)
-    if (!account) throw new Error("账户不存在")
+    if (!account) throw new Error("Account not found")
 
     // Prevent currency change if account has entries
     if (data.currency !== undefined && data.currency !== account.currency) {
       const entryCount = await db.entries.where("accountId").equals(id).count()
       if (entryCount > 0) {
-        throw new Error("该账户已有流水记录，无法修改币种。")
+        throw new Error("The currency cannot be changed after transactions have been recorded.")
       }
     }
 
@@ -112,13 +112,13 @@ export const accountService = {
   ): Promise<void> {
     await db.transaction("rw", [db.accounts, db.categories], async () => {
       const account = await db.accounts.get(accountId)
-      if (!account) throw new Error("账户不存在")
+      if (!account) throw new Error("Account not found")
 
       const sourceCategory = await db.categories.get(account.categoryId)
       const targetCategory = await db.categories.get(targetCategoryId)
-      if (!targetCategory) throw new Error("目标分类不存在")
+      if (!targetCategory) throw new Error("Destination category not found")
       if (sourceCategory && sourceCategory.type !== targetCategory.type) {
-        throw new Error("不能将账户移动到不同类型的分类")
+        throw new Error("Accounts can only move between categories of the same type")
       }
 
       // Get new siblings (excluding the account itself)
@@ -176,7 +176,7 @@ export const accountService = {
   async delete(id: string): Promise<void> {
     const entryCount = await db.entries.where("accountId").equals(id).count()
     if (entryCount > 0) {
-      throw new Error("该账户已有流水记录，无法删除。请先归档账户。")
+      throw new Error("This account has transactions and cannot be deleted. Archive it instead.")
     }
     await db.accounts.delete(id)
   },

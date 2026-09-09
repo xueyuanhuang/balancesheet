@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { ChevronRight, Check } from "lucide-react"
 import { useCategories } from "@/lib/hooks/use-categories"
 import { useCategoryTree } from "@/lib/hooks/use-category-tree"
-import type { Category, CategoryType, CategoryTreeNode } from "@/types"
+import type { CategoryType, CategoryTreeNode } from "@/types"
 import { cn } from "@/lib/utils"
 
 interface CategoryPickerProps {
@@ -72,7 +72,7 @@ function PickerNode({
   )
 }
 
-export function CategoryPicker({ value, onChange, type, label = "选择分类", allowParent = false }: CategoryPickerProps) {
+export function CategoryPicker({ value, onChange, type, label = "Select a category", allowParent = false }: CategoryPickerProps) {
   const [open, setOpen] = useState(false)
   const categories = useCategories(type)
   const { assetTree, liabilityTree } = useCategoryTree(categories)

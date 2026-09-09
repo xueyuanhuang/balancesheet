@@ -4,9 +4,10 @@ export const dynamic = "force-static"
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "净值",
-    short_name: "净值",
-    description: "清晰管理你的资产、负债和净资产",
+    name: "Net Worth",
+    short_name: "Net Worth",
+    lang: "en",
+    description: "Track your assets, liabilities, and net worth",
     start_url: "/dashboard",
     display: "standalone",
     orientation: "portrait",

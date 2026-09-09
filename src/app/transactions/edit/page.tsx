@@ -20,18 +20,18 @@ export default function EditTransactionPage() {
     if (!operationData) return
     try {
       await operationService.deleteOperation(operationData.operation.id)
-      toast.success("已删除")
+      toast.success("Deleted")
       router.back()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败")
+      toast.error(err instanceof Error ? err.message : "Could not delete")
     }
   }
 
   if (!operationData) {
     return (
       <div>
-        <PageHeader title="编辑交易" showBack />
-        <div className="p-4 text-center text-muted-foreground">加载中...</div>
+        <PageHeader title="Edit transaction" showBack />
+        <div className="p-4 text-center text-muted-foreground">Loading...</div>
       </div>
     )
   }
@@ -39,7 +39,7 @@ export default function EditTransactionPage() {
   return (
     <div>
       <PageHeader
-        title="编辑交易"
+        title="Edit transaction"
         showBack
         rightAction={
           <Button variant="ghost" size="icon" onClick={handleDelete}>

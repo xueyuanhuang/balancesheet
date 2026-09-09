@@ -227,7 +227,7 @@ function AccountGroupRow({
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="truncate">{group.name}</span>
           <span className="text-xs text-muted-foreground shrink-0">
-            ({group.accounts.length}币种)
+            ({group.accounts.length} currencies)
           </span>
           {expanded ? (
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -464,7 +464,7 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
     try {
       await categoryService.moveCategory(categoryId, targetParentId, sortIndex)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "移动分类失败")
+      toast.error(err instanceof Error ? err.message : "Could not move category")
     }
   }, [])
 
@@ -476,7 +476,7 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
     try {
       await accountService.moveAccount(accountId, targetCategoryId, sortIndex)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "移动账户失败")
+      toast.error(err instanceof Error ? err.message : "Could not move account")
     }
   }, [])
 
@@ -504,9 +504,9 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
     return (
       <EmptyState
         icon={Wallet}
-        title="暂无账户"
-        description="创建你的第一个账户开始记录资产和负债"
-        actionLabel="创建账户"
+        title="No accounts yet"
+        description="Create your first account to track assets and liabilities."
+        actionLabel="Create account"
         actionHref="/accounts/new"
       />
     )
@@ -523,7 +523,7 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
       {assetAccountTree.length > 0 && (
         <section>
           <div className="flex items-center justify-between px-4 py-2">
-            <h2 className="text-sm font-semibold">资产</h2>
+            <h2 className="text-sm font-semibold">Assets</h2>
             <AmountDisplay cents={totalAssets} size="sm" className="text-emerald-600" />
           </div>
           {assetAccountTree.map((node) => (
@@ -543,7 +543,7 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
       {liabilityAccountTree.length > 0 && (
         <section>
           <div className="flex items-center justify-between px-4 py-2">
-            <h2 className="text-sm font-semibold">负债</h2>
+            <h2 className="text-sm font-semibold">Liabilities</h2>
             <AmountDisplay cents={totalLiabilities} size="sm" className="text-red-500" />
           </div>
           {liabilityAccountTree.map((node) => (
@@ -572,7 +572,7 @@ export function AccountList({ displayCurrency = "auto" }: { displayCurrency?: Cu
           state.dropPosition === "drop-root" && "border-primary bg-primary/5 text-primary"
         )}
       >
-        拖拽到此处移为顶级分类
+        Drop here to make a top-level category
       </div>
 
       {/* Drag overlay */}

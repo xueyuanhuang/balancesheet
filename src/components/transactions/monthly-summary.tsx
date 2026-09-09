@@ -16,8 +16,8 @@ import {
 import { Button } from "@/components/ui/button"
 
 const MONTHS = [
-  "1月", "2月", "3月", "4月", "5月", "6月",
-  "7月", "8月", "9月", "10月", "11月", "12月",
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ]
 
 export function MonthlySummary() {
@@ -63,7 +63,7 @@ export function MonthlySummary() {
       <div className="rounded-lg border bg-card p-4 space-y-3">
         {/* Month selector */}
         <div className="flex items-center justify-between">
-          <button onClick={goToPrevMonth} className="p-1 hover:bg-accent rounded">
+          <button onClick={goToPrevMonth} aria-label="Previous month" className="p-1 hover:bg-accent rounded">
             <ChevronLeft className="h-4 w-4" />
           </button>
           <Dialog open={pickerOpen} onOpenChange={handlePickerOpen}>
@@ -72,7 +72,7 @@ export function MonthlySummary() {
                 <button className="text-sm font-medium hover:bg-accent rounded px-2 py-1" />
               }
             >
-              {year}年{month + 1}月
+              {MONTHS[month]} {year}
             </DialogTrigger>
             <DialogContent showCloseButton={false}>
               <DialogHeader>
@@ -80,13 +80,15 @@ export function MonthlySummary() {
                   <div className="flex items-center justify-between">
                     <button
                       onClick={() => setPickerYear((y) => y - 1)}
+                      aria-label="Previous year"
                       className="p-1 hover:bg-accent rounded"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    <span>{pickerYear}年</span>
+                    <span>{pickerYear}</span>
                     <button
                       onClick={() => setPickerYear((y) => y + 1)}
+                      aria-label="Next year"
                       className="p-1 hover:bg-accent rounded"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -108,7 +110,7 @@ export function MonthlySummary() {
               </div>
             </DialogContent>
           </Dialog>
-          <button onClick={goToNextMonth} className="p-1 hover:bg-accent rounded">
+          <button onClick={goToNextMonth} aria-label="Next month" className="p-1 hover:bg-accent rounded">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
@@ -117,7 +119,7 @@ export function MonthlySummary() {
         <div className="grid grid-cols-3 gap-2 text-center">
           <Link href={`/transactions/monthly-detail?year=${year}&month=${month}&type=income`}>
             <div className="rounded-md py-1 hover:bg-accent/50 active:bg-accent">
-              <div className="text-xs text-muted-foreground">收入</div>
+              <div className="text-xs text-muted-foreground">Income</div>
               <div className="text-sm font-medium text-emerald-600 tabular-nums">
                 {formatAmount(data.totalIncome)}
               </div>
@@ -125,14 +127,14 @@ export function MonthlySummary() {
           </Link>
           <Link href={`/transactions/monthly-detail?year=${year}&month=${month}&type=expense`}>
             <div className="rounded-md py-1 hover:bg-accent/50 active:bg-accent">
-              <div className="text-xs text-muted-foreground">支出</div>
+              <div className="text-xs text-muted-foreground">Expense</div>
               <div className="text-sm font-medium text-red-500 tabular-nums">
                 {formatAmount(data.totalExpense)}
               </div>
             </div>
           </Link>
           <div className="py-1">
-            <div className="text-xs text-muted-foreground">结余</div>
+            <div className="text-xs text-muted-foreground">Net</div>
             <div
               className={cn(
                 "text-sm font-medium tabular-nums",
@@ -146,7 +148,7 @@ export function MonthlySummary() {
 
         {data.items.length === 0 && (
           <div className="text-center text-sm text-muted-foreground py-2">
-            本月暂无收支记录
+            No income or expenses this month
           </div>
         )}
       </div>

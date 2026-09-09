@@ -3,8 +3,8 @@ import "./globals.css"
 import { AppShell } from "@/components/layout/app-shell"
 
 export const metadata: Metadata = {
-  title: "净值",
-  description: "清晰管理你的资产、负债和净资产",
+  title: "Net Worth",
+  description: "Track your assets, liabilities, and net worth",
   icons: {
     icon: "/icons/icon-512.png",
     apple: "/icons/apple-icon-180.png",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "净值",
+    title: "Net Worth",
   },
 }
 
@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en-US">
       <body className="antialiased" style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"' }}>
         <AppShell>{children}</AppShell>
       </body>

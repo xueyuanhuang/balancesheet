@@ -1,104 +1,63 @@
-# 净值 — 个人资产负债表 | Net Worth Tracker
+# Net Worth — Personal Balance Sheet
 
-> 隐私优先的个人资产负债表 PWA：多币种、多账户，实时追踪净资产变化。数据 100% 留在你自己的设备上。
+A mobile-first app for tracking assets, liabilities, and net worth. The built-in interface is in English. No signup is required; your ledger is stored locally in your browser with IndexedDB.
 
-**在线使用（免注册、免安装）：** [https://balancesheet-cnt.pages.dev](https://balancesheet-cnt.pages.dev)
+[Public website](https://balancesheet-cnt.pages.dev) · [GitHub](https://github.com/xueyuanhuang/balancesheet)
 
-[English](#english) | [打赏支持](#支持作者)
+## Features
 
-## 为什么做这个
+- **Accounts and categories:** Organize assets and liabilities in a tree. Accounts can belong directly to parent categories as well as their subcategories.
+- **Multiple currencies:** CNY, USD, HKD, and SGD, with exchange-rate conversion for combined totals.
+- **Activity:** Income, expenses, transfers, currency exchanges, borrowing, repayments, and adjustments, with account links and running balances.
+- **Opening records:** Accounts with a nonzero opening balance have an “Account opened” record, dated when the account was created. Existing accounts are included automatically; zero openings are omitted.
+- **Monthly reporting:** Positive asset openings count as income and positive liability openings as expenses in the account creation month. Negative openings reverse the direction. These records are derived from accounts and do not add another ledger entry or change balances. Transfers and repayments remain excluded from monthly income/expense totals.
+- **Overview charts:** Net-worth history and six months of net income, income, and expenses. Net income is income minus expenses. Historical net-worth snapshots use current exchange rates; snapshots are recorded during Overview use, grouped by hour.
+- **Amount expressions:** Calculate amounts such as `1000 * 7.2 + 50` inside the transaction form.
+- **Privacy mode:** Hide amounts while keeping chart shapes visible.
+- **Portable data:** Full JSON backup and restore, plus CSV export of recorded transactions. JSON import replaces the destination ledger; it does not merge. Opening records are reconstructed from backed-up accounts. CSV contains recorded transactions only.
+- **PWA and iOS:** Install the web app on a home screen or use the included Capacitor iOS project.
 
-市面上的记账 App 要么强制注册、数据上云，要么专注流水记账而不是资产全貌。「净值」只回答一个问题：**我现在的净资产是多少，它在怎么变化？**
+Saved account names, category names, and notes retain the text entered by the user. New suggested categories are in English.
 
-- 不需要账号，打开就能用
-- 数据只存在你的浏览器里（IndexedDB），没有服务器，没人看得到你的钱
-- 关注存量（资产/负债）而非流水，几分钟录完所有账户，之后每次只需更新余额
+## Development
 
-## 主要特性
+Use pnpm 9 and Node.js 22 or later for both web and native tooling. This version was checked with Node.js 24 and pnpm 9.15.9.
 
-- **资产/负债分类管理** — 树形分类，自由组织现金、投资、房产、贷款等
-- **多币种支持** — CNY/USD/HKD/SGD，自定义汇率，一键折算汇总
-- **净资产趋势图** — 每小时快照，统一用当前汇率渲染历史点位，消除汇率噪音
-- **完整操作类型** — 转账、跨币种转账、借款、还款、余额调整，复式记账保证账目平衡
-- **金额表达式** — 输入框直接算 `1000*7.2+50`
-- **隐私模式** — 一键隐藏所有金额，图表趋势保留
-- **PWA + iOS** — 添加到主屏幕即原生体验，支持离线使用
-- **数据自由** — JSON 全量备份/恢复，CSV 流水导出，随时带走你的数据
-
-## 截图
-
-| 总览 | 账户 | 流水 |
-|---|---|---|
-| ![总览](promo/screenshots/01-dashboard.png) | ![账户](promo/screenshots/02-accounts.png) | ![流水](promo/screenshots/03-transactions.png) |
-
-*截图为演示数据 / Screenshots show demo data*
-
-## 技术栈
-
-Next.js 16 (App Router, 静态导出) · TypeScript · Tailwind CSS · shadcn/ui (@base-ui) · Dexie.js (IndexedDB) · Recharts · Capacitor (iOS)
-
-纯客户端架构，无后端、无埋点、无第三方数据收集。
-
-## 本地开发
-
-```bash
-pnpm install
+```sh
+pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-## 发布
+Use fictional data on localhost for development. Browser profiles and different origins have separate ledgers.
 
-- [iOS 上架操作手册](docs/ios-app-store-release.md)
-
-## 支持作者
-
-这个项目完全免费、开源、无广告。如果它帮你理清了自己的财务全貌，欢迎请作者喝杯咖啡 ☕：
-
-**EVM 地址（ETH / USDT / USDC，支持以太坊、Base、Arbitrum 等主流链）：**
-
+```sh
+pnpm test
+pnpm lint
+pnpm build
 ```
+
+Tests use Node's built-in test runner and the existing TypeScript dependency. They cover opening activity, filters, ordering, monthly reporting, currency conversion, and unchanged stored balances.
+
+## Architecture and release
+
+Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, shadcn/ui on Base UI, Dexie, Recharts, and Capacitor. The web app is a static export with no application backend. It fetches public exchange rates; ledger data stays local.
+
+- `src/lib/db/`: Dexie schema and migrations, currently v13.
+- `src/lib/services/`: Ledger writes, balance recalculation, backups, and snapshots.
+- `src/lib/hooks/`: Reactive queries and reporting.
+- `src/components/`: Shared UI and domain components.
+- `src/app/`: Routes and pages.
+
+`pnpm build` generates `out/`. The checked-in GitHub Actions workflow deploys pushes to `main` to Cloudflare Pages. For iOS packaging, see the [iOS release guide](docs/ios-app-store-release.md).
+
+## Support and contact
+
+Free, open source, and ad-free. Stars, feedback, and sharing the app are welcome.
+
+EVM donation address (ETH / USDT / USDC on supported networks):
+
+```text
 0x9f14F10E511b2772cc63E5667a012cEA09CECf86
 ```
 
-也欢迎点个 ⭐ Star，或把它分享给需要的朋友 —— 这同样是巨大的支持。
-
-## 联系作者
-
-微信：`_xueyuanhuang`（备注「小作坊」进 AI 小作坊群）
-
-用 AI 做的小工具都在这，新品尝鲜、反馈直达、一起共创。
-
----
-
-## English
-
-**Net Worth** is a privacy-first personal balance sheet PWA. Track assets, liabilities, and net worth across multiple currencies — with all data stored locally in your browser.
-
-**Try it now (no signup):** [https://balancesheet-cnt.pages.dev](https://balancesheet-cnt.pages.dev)
-
-### Why
-
-Most finance apps force accounts and cloud sync, or focus on expense tracking instead of the big picture. Net Worth answers one question: **what am I worth, and how is that changing?**
-
-- **Local-only** — data lives in IndexedDB on your device; no server, no analytics, no tracking
-- **Stock, not flow** — track account balances instead of every coffee purchase; set up in minutes
-- **Multi-currency** — CNY/USD/HKD/SGD with custom exchange rates and one-tap conversion
-- **Double-entry operations** — transfers, FX transfers, loan drawdowns/repayments, adjustments
-- **Hourly net worth snapshots** — trend chart rendered at current rates to eliminate FX noise
-- **Privacy mode** — hide all amounts with one tap, keep the trends
-- **Your data, portable** — full JSON backup/restore, CSV export
-- **PWA + iOS** — installable, offline-capable
-
-> UI is currently in Chinese (zh-CN). English localization is on the roadmap — star the repo to follow along.
-
-### Support
-
-Free, open-source, ad-free. If it helped you, consider buying me a coffee ☕
-
-**EVM address (ETH / USDT / USDC on Ethereum, Base, Arbitrum, etc.):**
-
-```
-0x9f14F10E511b2772cc63E5667a012cEA09CECf86
-```
-
-Starring the repo and sharing it with a friend helps just as much.
+WeChat: `_xueyuanhuang`. Ask to join the AI Workshop group for new tools and feedback.

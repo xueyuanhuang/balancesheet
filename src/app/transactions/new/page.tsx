@@ -6,7 +6,7 @@ import { TransactionForm } from "@/components/transactions/transaction-form"
 export default function NewTransactionPage() {
   return (
     <div>
-      <PageHeader title="记账" showBack />
+      <PageHeader title="Add transaction" showBack />
       <TransactionForm mode="create" />
     </div>
   )

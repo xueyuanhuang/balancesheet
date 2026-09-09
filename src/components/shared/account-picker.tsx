@@ -285,7 +285,7 @@ function useRecentAccountSortValues(sortMode: AccountPickerSortMode) {
 export function AccountPicker({
   value,
   onChange,
-  label = "选择账户",
+  label = "Select an account",
   excludeId,
   sortMode = "recentAny",
 }: AccountPickerProps) {
@@ -389,7 +389,7 @@ export function AccountPicker({
           ))}
           {tree.length === 0 && (
             <div className="py-4 text-center text-sm text-muted-foreground">
-              暂无可选账户
+              No accounts available
             </div>
           )}
         </div>

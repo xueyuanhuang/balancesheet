@@ -64,7 +64,7 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) {
-      toast.error("请输入分类名称")
+      toast.error("Enter a category name")
       return
     }
 
@@ -73,15 +73,15 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
       if (mode === "create") {
         await categoryService.create({ name: name.trim(), type, parentId })
         if (parentId) await categoryService.incrementUsageCount(parentId)
-        toast.success("分类创建成功")
+        toast.success("Category created")
       } else if (initialData) {
         await categoryService.update(initialData.id, { name: name.trim(), parentId })
         if (parentId) await categoryService.incrementUsageCount(parentId)
-        toast.success("分类更新成功")
+        toast.success("Category updated")
       }
       router.back()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败")
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
     }
@@ -92,7 +92,7 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
       {/* Type selector - only for create mode */}
       {mode === "create" && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">类型</label>
+          <label className="text-sm font-medium">Type</label>
           <div className="flex gap-2">
             <Button
               type="button"
@@ -100,7 +100,7 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
               className="flex-1"
               onClick={() => { setType("asset"); setParentId(null) }}
             >
-              资产
+              Assets
             </Button>
             <Button
               type="button"
@@ -108,7 +108,7 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
               className="flex-1"
               onClick={() => { setType("liability"); setParentId(null) }}
             >
-              负债
+              Liabilities
             </Button>
           </div>
         </div>
@@ -116,28 +116,28 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
 
       {/* Name */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">名称</label>
+        <label className="text-sm font-medium">Name</label>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="输入分类名称"
+          placeholder="Enter a category name"
           maxLength={20}
         />
       </div>
 
       {/* Parent category */}
       <div className="space-y-2">
-        <label className="text-sm font-medium">父级分类</label>
+        <label className="text-sm font-medium">Parent category</label>
         <Select value={parentId ?? "__none__"} onValueChange={(v) => setParentId(v === "__none__" ? null : v)}>
           <SelectTrigger className="w-full">
             <span data-slot="select-value" className="flex flex-1 text-left truncate">
               {parentId
-                ? getCategoryPath(parentId, categories) || "选择父级分类"
-                : "无（顶级分类）"}
+                ? getCategoryPath(parentId, categories) || "Select a parent category"
+                : "None (top level)"}
             </span>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none__">无（顶级分类）</SelectItem>
+            <SelectItem value="__none__">None (top level)</SelectItem>
             {parentOptions.map((c) => (
               <SelectItem key={c.id} value={c.id}>
                 {getCategoryPath(c.id, categories)}
@@ -149,7 +149,7 @@ export function CategoryForm({ mode, initialData, defaultType = "asset", default
 
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "保存中..." : mode === "create" ? "创建分类" : "保存修改"}
+        {loading ? "Saving..." : mode === "create" ? "Create category" : "Save changes"}
       </Button>
     </form>
   )

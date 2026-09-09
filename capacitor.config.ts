@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.xueyuanhuang.balancesheet",
-  appName: "净值",
+  appName: "Net Worth",
   webDir: "out",
 };
 

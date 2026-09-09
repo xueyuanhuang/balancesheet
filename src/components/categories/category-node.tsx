@@ -125,14 +125,14 @@ export function CategoryNode({
           <Link href={`/categories/edit?id=${node.id}`}>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
               <Pencil className="h-3.5 w-3.5" />
-              编辑
+              Edit
             </Button>
           </Link>
           {depth < 2 && (
             <Link href={`/categories/new?type=${node.type}&parentId=${node.id}`} onClick={() => setShowActions(false)}>
               <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-9">
                 <Plus className="h-3.5 w-3.5" />
-                添加子分类
+                Add subcategory
               </Button>
             </Link>
           )}
@@ -144,9 +144,9 @@ export function CategoryNode({
               onClick={() => { onArchive(node.id); setShowActions(false) }}
             >
               {node.isArchived ? (
-                <><ArchiveRestore className="h-3.5 w-3.5" />恢复</>
+                <><ArchiveRestore className="h-3.5 w-3.5" />Restore</>
               ) : (
-                <><Archive className="h-3.5 w-3.5" />归档</>
+                <><Archive className="h-3.5 w-3.5" />Archive</>
               )}
             </Button>
           )}
@@ -158,7 +158,7 @@ export function CategoryNode({
               onClick={() => { onDelete(node.id); setShowActions(false) }}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              删除
+              Delete
             </Button>
           )}
         </div>

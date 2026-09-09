@@ -11,12 +11,12 @@ import type { OperationWithEntries } from "@/types"
 import { cn } from "@/lib/utils"
 
 const KIND_LABELS: Record<string, string> = {
-  normal: "普通",
-  transfer: "转账",
-  fx_transfer: "外汇转账",
-  liability_repayment: "还款",
-  liability_drawdown: "借款",
-  adjustment: "调整",
+  normal: "General",
+  transfer: "Transfer",
+  fx_transfer: "Currency exchange",
+  liability_repayment: "Repayment",
+  liability_drawdown: "Borrowing",
+  adjustment: "Adjustment",
 }
 
 interface OperationItemProps {
@@ -67,18 +67,18 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   }
 
   // Description
-  const kindLabel = KIND_LABELS[operation.kind] ?? "未知"
+  const kindLabel = KIND_LABELS[operation.kind] ?? "Unknown"
   const primaryText = operation.description || kindLabel
 
   const relatedAccounts = isMultiEntry ? [sourceAccount, targetAccount] : [sourceAccount]
   const editLabel = [
-    "编辑流水",
+    "Edit transaction",
     primaryText,
-    relatedAccounts.map((account) => account?.name ?? "未知账户").join(" → "),
+    relatedAccounts.map((account) => account?.name ?? "Unknown account").join(" → "),
     formatDateTime(operation.occurredAt),
     sourceEntry ? formatAmount(sourceEntry.amount, sourceAccount?.currency) : "",
     targetEntry ? formatAmount(targetEntry.amount, targetAccount?.currency) : "",
-  ].filter(Boolean).join("，")
+  ].filter(Boolean).join(", ")
 
   // Amount display
   const isCrossCurrency = isMultiEntry && sourceEntry && targetEntry &&
@@ -100,20 +100,20 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
       const account = entry.id === sourceEntry?.id ? sourceAccount : targetAccount
       const balance = runningBalances.get(entry.id)
       if (balance === undefined || !account) return null
-      return `余 ${fmt(balance, account.currency)}`
+      return `Bal. ${fmt(balance, account.currency)}`
     }
 
     if (isSingleEntry && sourceEntry && sourceAccount) {
       const balance = runningBalances.get(sourceEntry.id)
       if (balance === undefined) return null
-      return `余 ${fmt(balance, sourceAccount.currency)}`
+      return `Bal. ${fmt(balance, sourceAccount.currency)}`
     }
 
     if (isMultiEntry && sourceEntry && targetEntry && sourceAccount && targetAccount) {
       const srcBal = runningBalances.get(sourceEntry.id)
       const tgtBal = runningBalances.get(targetEntry.id)
       if (srcBal === undefined || tgtBal === undefined) return null
-      return `余 ${fmt(srcBal, sourceAccount.currency)} → ${fmt(tgtBal, targetAccount.currency)}`
+      return `Bal. ${fmt(srcBal, sourceAccount.currency)} → ${fmt(tgtBal, targetAccount.currency)}`
     }
 
     return null
@@ -144,14 +144,14 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
                 {account ? (
                   <Link
                     href={`/accounts/detail?id=${account.id}`}
-                    aria-label={`查看账户：${account.name}`}
+                    aria-label={`View account: ${account.name}`}
                     title={account.name}
                     className="relative z-10 min-w-0 min-h-0 truncate rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {account.name}
                   </Link>
                 ) : (
-                  <span className="truncate">未知账户</span>
+                  <span className="truncate">Unknown account</span>
                 )}
               </Fragment>
             ))}

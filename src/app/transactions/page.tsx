@@ -5,21 +5,21 @@ import { PageHeader } from "@/components/layout/page-header"
 import { TransactionList } from "@/components/transactions/transaction-list"
 import { TransactionFilters } from "@/components/transactions/transaction-filters"
 import { MonthlySummary } from "@/components/transactions/monthly-summary"
-import { useOperations } from "@/lib/hooks/use-operations"
-import type { OperationKind } from "@/types"
+import { useActivity } from "@/lib/hooks/use-activity"
+import type { ActivityKind } from "@/types"
 
 export default function TransactionsPage() {
   const [keyword, setKeyword] = useState("")
-  const [kindFilter, setKindFilter] = useState<OperationKind | undefined>(undefined)
+  const [kindFilter, setKindFilter] = useState<ActivityKind | undefined>(undefined)
 
-  const operations = useOperations({
+  const items = useActivity({
     keyword: keyword || undefined,
     kind: kindFilter,
   })
 
   return (
     <div>
-      <PageHeader title="流水" />
+      <PageHeader title="Activity" />
       <div className="py-4 space-y-4">
         <MonthlySummary />
         <TransactionFilters
@@ -28,7 +28,7 @@ export default function TransactionsPage() {
           kindFilter={kindFilter}
           onKindFilterChange={setKindFilter}
         />
-        <TransactionList operations={operations} />
+        <TransactionList items={items} />
       </div>
     </div>
   )

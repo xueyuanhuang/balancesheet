@@ -13,15 +13,15 @@ export default function EditCategoryPage() {
   if (!category) {
     return (
       <div>
-        <PageHeader title="编辑分类" showBack />
-        <div className="p-4 text-center text-muted-foreground">加载中...</div>
+        <PageHeader title="Edit category" showBack />
+        <div className="p-4 text-center text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
   return (
     <div>
-      <PageHeader title="编辑分类" showBack />
+      <PageHeader title="Edit category" showBack />
       <CategoryForm mode="edit" initialData={category} />
     </div>
   )

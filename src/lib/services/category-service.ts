@@ -35,12 +35,12 @@ export const categoryService = {
     if (data.parentId) {
       const parentDepth = await this._getCategoryDepth(data.parentId)
       if (parentDepth >= 3) {
-        throw new Error("分类最多支持三级层级")
+        throw new Error("Categories support up to three levels")
       }
     }
 
     if (siblings.some((s) => s.name === data.name)) {
-      throw new Error("同级下已存在同名分类")
+      throw new Error("A category with this name already exists at this level")
     }
 
     const maxSort = siblings.length > 0
@@ -69,14 +69,14 @@ export const categoryService = {
     // If changing parentId, check for circular reference
     if (data.parentId !== undefined) {
       if (data.parentId === id) {
-        throw new Error("不能将分类设为自己的子分类")
+        throw new Error("A category cannot be its own subcategory")
       }
       if (data.parentId !== null) {
         // Walk up the tree to check for cycles
         let current = data.parentId
         while (current) {
           if (current === id) {
-            throw new Error("不能形成循环的父子关系")
+            throw new Error("Categories cannot contain circular relationships")
           }
           const parent = await db.categories.get(current)
           current = parent?.parentId || ""
@@ -89,14 +89,14 @@ export const categoryService = {
     if (data.parentId !== undefined && data.parentId !== null) {
       const parentDepth = await this._getCategoryDepth(data.parentId)
       if (parentDepth >= 3) {
-        throw new Error("分类最多支持三级层级")
+        throw new Error("Categories support up to three levels")
       }
     }
 
     // Check unique name among new siblings if name or parentId changed
     if (data.name !== undefined || data.parentId !== undefined) {
       const existing = await db.categories.get(id)
-      if (!existing) throw new Error("分类不存在")
+      if (!existing) throw new Error("Category not found")
 
       const targetParentId = data.parentId !== undefined ? data.parentId : existing.parentId
       const targetName = data.name !== undefined ? data.name : existing.name
@@ -106,7 +106,7 @@ export const categoryService = {
         .toArray()
 
       if (siblings.some((s) => s.name === targetName)) {
-        throw new Error("同级下已存在同名分类")
+        throw new Error("A category with this name already exists at this level")
       }
     }
 
@@ -180,10 +180,10 @@ export const categoryService = {
     }
 
     if (linkedAccounts.length > 0) {
-      const names = linkedAccounts.map((a) => `「${a.name}」`).join("、")
+      const names = linkedAccounts.map((a) => `“${a.name}”`).join(", ")
       return {
         canDelete: false,
-        reason: `该分类下有 ${linkedAccounts.length} 个账户（${names}），需要先去账户页编辑移动到其他分类，或删除这些账户后才能删除分类。`,
+        reason: `This category contains ${linkedAccounts.length} accounts (${names}). Move or delete these accounts before deleting the category.`,
         linkedAccounts,
       }
     }
@@ -212,7 +212,7 @@ export const categoryService = {
   ): Promise<void> {
     await db.transaction("rw", [db.categories], async () => {
       const category = await db.categories.get(categoryId)
-      if (!category) throw new Error("分类不存在")
+      if (!category) throw new Error("Category not found")
 
       // Determine effective target parent
       const newParentId = targetParentId
@@ -220,13 +220,13 @@ export const categoryService = {
       // Circular reference check
       if (newParentId !== null) {
         if (newParentId === categoryId) {
-          throw new Error("不能将分类设为自己的子分类")
+          throw new Error("A category cannot be its own subcategory")
         }
         // Walk up from target to root, ensure we don't hit categoryId
         let current: string | null = newParentId
         while (current) {
           if (current === categoryId) {
-            throw new Error("不能形成循环的父子关系")
+            throw new Error("Categories cannot contain circular relationships")
           }
           const parent: Category | undefined = await db.categories.get(current)
           current = parent?.parentId ?? null
@@ -238,13 +238,13 @@ export const categoryService = {
         const targetDepth = await this._getCategoryDepth(newParentId)
         const subtreeMaxDepth = await this._getSubtreeMaxDepth(categoryId)
         if (targetDepth + subtreeMaxDepth > 3) {
-          throw new Error("分类最多支持三级层级")
+          throw new Error("Categories support up to three levels")
         }
       } else {
         // Moving to root: subtree depth must be <= 3
         const subtreeMaxDepth = await this._getSubtreeMaxDepth(categoryId)
         if (subtreeMaxDepth > 3) {
-          throw new Error("分类最多支持三级层级")
+          throw new Error("Categories support up to three levels")
         }
       }
 

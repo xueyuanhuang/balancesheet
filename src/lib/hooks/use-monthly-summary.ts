@@ -3,9 +3,12 @@
 import { useLiveQuery } from "dexie-react-hooks"
 import { db } from "@/lib/db"
 import { convertToCNY } from "@/lib/utils/currency"
+import { getOpeningBalanceType } from "@/lib/utils/opening-balance"
 
 export interface MonthlySummaryItem {
-  operationId: string
+  id: string
+  operationId: string | null
+  accountId: string
   description: string
   occurredAt: number
   accountName: string
@@ -38,12 +41,10 @@ export function useMonthlySummary(year: number, month: number) {
         (op) => op.kind === "normal" || op.kind === "adjustment"
       )
 
-      if (relevantOps.length === 0) {
-        return { totalIncome: 0, totalExpense: 0, net: 0, items: [] }
-      }
-
       const opIds = relevantOps.map((op) => op.id)
-      const entries = await db.entries.where("operationId").anyOf(opIds).toArray()
+      const entries = opIds.length > 0
+        ? await db.entries.where("operationId").anyOf(opIds).toArray()
+        : []
 
       const accounts = await db.accounts.toArray()
       const categories = await db.categories.toArray()
@@ -79,14 +80,37 @@ export function useMonthlySummary(year: number, month: number) {
         const amountCNY = convertToCNY(entry.amount, account.currency, rateMap)
 
         items.push({
+          id: `entry:${entry.id}`,
           operationId: operation.id,
-          description: operation.description || (type === "income" ? "收入" : "支出"),
+          accountId: account.id,
+          description: operation.description || (type === "income" ? "Income" : "Expense"),
           occurredAt: operation.occurredAt,
           accountName: account.name,
           currency: account.currency,
           amount: entry.amount,
           amountCNY,
           type,
+        })
+      }
+
+      // Opening balances contribute to reporting in their creation month only.
+      // They stay on accounts, so balance recalculation cannot count them twice.
+      for (const account of accounts) {
+        if (account.openingBalance === 0 || account.createdAt < startDate || account.createdAt >= endDate) continue
+        const category = categoryMap.get(account.categoryId)
+        if (!category) continue
+        const amount = Math.abs(account.openingBalance)
+        items.push({
+          id: `opening_balance:${account.id}`,
+          operationId: null,
+          accountId: account.id,
+          description: "Opening balance",
+          occurredAt: account.createdAt,
+          accountName: account.name,
+          currency: account.currency,
+          amount,
+          amountCNY: convertToCNY(amount, account.currency, rateMap),
+          type: getOpeningBalanceType(account.openingBalance, category.type),
         })
       }
 

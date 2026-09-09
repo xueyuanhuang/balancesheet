@@ -18,19 +18,19 @@ type FormKind = "normal" | "transfer" | "adjustment"
 
 function getAmountError(label: string, cents: number, status: AmountInputStatus | null): string | null {
   if (!status) {
-    return cents <= 0 ? `请输入${label}` : null
+    return cents <= 0 ? `Enter ${label.toLowerCase()}` : null
   }
 
   if (!status.hasInput) {
-    return `请输入${label}`
+    return `Enter ${label.toLowerCase()}`
   }
 
   if (status.error) {
-    return `${label}${status.error}`
+    return `${label}: ${status.error}`
   }
 
   if (!status.isValid) {
-    return `${label}算式格式不正确`
+    return `${label}: invalid expression`
   }
 
   return null
@@ -128,18 +128,18 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
     try {
       if (kind === "transfer") {
         if (!fromAccountId || !toAccountId) {
-          toast.error("请选择转出和转入账户")
+          toast.error("Select the source and destination accounts")
           setLoading(false)
           return
         }
-        const fromAmountError = getAmountError("转出金额", fromAmount, fromAmountStatus)
+        const fromAmountError = getAmountError("Amount sent", fromAmount, fromAmountStatus)
         if (fromAmountError) {
           toast.error(fromAmountError)
           setLoading(false)
           return
         }
         const toAmountError = showDualAmounts
-          ? getAmountError("转入金额", toAmount, toAmountStatus)
+          ? getAmountError("Amount received", toAmount, toAmountStatus)
           : null
         if (toAmountError) {
           toast.error(toAmountError)
@@ -170,11 +170,11 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         }
       } else {
         if (!accountId) {
-          toast.error("请选择账户")
+          toast.error("Select an account")
           setLoading(false)
           return
         }
-        const amountError = getAmountError("金额", amount, amountStatus)
+        const amountError = getAmountError("Amount", amount, amountStatus)
         if (amountError) {
           toast.error(amountError)
           setLoading(false)
@@ -182,8 +182,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         }
 
         // For liability accounts, flip the effect:
-        // User sees "支出" (decrease) → store as "increase" (debt goes up)
-        // User sees "收入" (increase) → store as "decrease" (debt goes down)
+        // User sees "Expense" (decrease) → store as "increase" (debt goes up)
+        // User sees "Income" (increase) → store as "decrease" (debt goes down)
         const storageEffect: EntryEffect = isLiability
           ? (effect === "increase" ? "decrease" : "increase")
           : effect
@@ -216,10 +216,10 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           })
         }
       }
-      toast.success(mode === "create" ? "记账成功" : "修改成功")
+      toast.success(mode === "create" ? "Transaction saved" : "Changes saved")
       router.back()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败")
+      toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
     }
@@ -231,9 +231,9 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       {mode === "create" && (
         <Tabs value={kind} onValueChange={(v) => setKind(v as FormKind)}>
           <TabsList className="w-full">
-            <TabsTrigger value="normal" className="flex-1">普通</TabsTrigger>
-            <TabsTrigger value="transfer" className="flex-1">转账</TabsTrigger>
-            <TabsTrigger value="adjustment" className="flex-1">调整</TabsTrigger>
+            <TabsTrigger value="normal" className="flex-1">General</TabsTrigger>
+            <TabsTrigger value="transfer" className="flex-1">Transfer</TabsTrigger>
+            <TabsTrigger value="adjustment" className="flex-1">Adjustment</TabsTrigger>
           </TabsList>
         </Tabs>
       )}
@@ -241,21 +241,21 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       {kind === "transfer" ? (
         <>
           <div className="space-y-2">
-            <label className="text-sm font-medium">转出账户</label>
+            <label className="text-sm font-medium">From account</label>
             <AccountPicker
               value={fromAccountId || null}
               onChange={setFromAccountId}
-              label="选择转出账户"
+              label="Select source account"
               excludeId={toAccountId || undefined}
               sortMode="recentTransferSource"
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">转入账户</label>
+            <label className="text-sm font-medium">To account</label>
             <AccountPicker
               value={toAccountId || null}
               onChange={setToAccountId}
-              label="选择转入账户"
+              label="Select destination account"
               excludeId={fromAccountId || undefined}
               sortMode="recentTransferTarget"
             />
@@ -266,7 +266,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             <>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  转出金额 ({getCurrencySymbol(fromCurrency)})
+                  Amount sent ({getCurrencySymbol(fromCurrency)})
                 </label>
                 <AmountInput
                   value={fromAmount}
@@ -278,7 +278,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  转入金额 ({getCurrencySymbol(toCurrency)})
+                  Amount received ({getCurrencySymbol(toCurrency)})
                 </label>
                 <AmountInput
                   value={toAmount}
@@ -290,19 +290,19 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               </div>
               {fxDisplay && (
                 <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                  汇率: {fxDisplay}
+                  Exchange rate: {fxDisplay}
                 </div>
               )}
               {!isCrossCurrency && hasFee && fromAmount > 0 && toAmount > 0 && fromAmount !== toAmount && (
                 <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                  手续费: {getCurrencySymbol(fromCurrency)}{((fromAmount - toAmount) / 100).toFixed(2)}
+                  Fee: {getCurrencySymbol(fromCurrency)}{((fromAmount - toAmount) / 100).toFixed(2)}
                 </div>
               )}
             </>
           ) : (
             <>
               <div className="space-y-2">
-                <label className="text-sm font-medium">金额</label>
+                <label className="text-sm font-medium">Amount</label>
                 <AmountInput
                   value={fromAmount}
                   onChange={(v) => { setFromAmount(v); setToAmount(v) }}
@@ -323,7 +323,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                     }}
                     className="rounded border-gray-300"
                   />
-                  <span className="text-muted-foreground">含手续费（转出与到账金额不同）</span>
+                  <span className="text-muted-foreground">Include a fee (sent and received amounts differ)</span>
                 </label>
               )}
             </>
@@ -332,7 +332,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       ) : (
         <>
           <div className="space-y-2">
-            <label className="text-sm font-medium">账户</label>
+            <label className="text-sm font-medium">Account</label>
             <AccountPicker
               value={accountId || null}
               onChange={setAccountId}
@@ -346,7 +346,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">方向</label>
+            <label className="text-sm font-medium">Direction</label>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -354,7 +354,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                 className="flex-1"
                 onClick={() => setEffect("decrease")}
               >
-                支出
+                Expense
               </Button>
               <Button
                 type="button"
@@ -362,13 +362,13 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                 className="flex-1"
                 onClick={() => setEffect("increase")}
               >
-                收入
+                Income
               </Button>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">金额</label>
+            <label className="text-sm font-medium">Amount</label>
             <AmountInput
               value={amount}
               onChange={setAmount}
@@ -381,7 +381,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       )}
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">时间</label>
+        <label className="text-sm font-medium">Date and time</label>
         <Input
           type="datetime-local"
           value={occurredAt}
@@ -390,16 +390,16 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       </div>
 
       <div className="space-y-2">
-        <label className="text-sm font-medium">描述</label>
+        <label className="text-sm font-medium">Description</label>
         <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="可选描述"
+          placeholder="Optional description"
         />
       </div>
 
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "保存中..." : mode === "create" ? "记账" : "保存修改"}
+        {loading ? "Saving..." : mode === "create" ? "Add transaction" : "Save changes"}
       </Button>
     </form>
   )
