@@ -16,7 +16,6 @@ type AccountPickerSortMode =
   | "recentIncome"
   | "recentTransferSource"
   | "recentTransferTarget"
-  | "recentAdjustment"
 const EMPTY_SORT_VALUES: Record<string, number> = {}
 
 interface AccountPickerProps {
@@ -264,8 +263,7 @@ function useRecentAccountSortValues(sortMode: AccountPickerSortMode) {
           (sortMode === "recentTransferTarget" &&
             operation.kind !== "normal" &&
             operation.kind !== "adjustment" &&
-            entry.role === "target") ||
-          (sortMode === "recentAdjustment" && operation.kind === "adjustment")
+            entry.role === "target")
 
         if (!matchesSortMode) continue
 

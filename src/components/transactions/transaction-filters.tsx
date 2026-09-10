@@ -48,7 +48,6 @@ export function TransactionFilters({
           { value: "fx_transfer" as const, label: "FX" },
           { value: "liability_repayment" as const, label: "Repayment" },
           { value: "liability_drawdown" as const, label: "Borrowing" },
-          { value: "adjustment" as const, label: "Adjustment" },
           { value: "opening_balance" as const, label: "Opening balance" },
         ] as const).map((opt) => (
           <Button

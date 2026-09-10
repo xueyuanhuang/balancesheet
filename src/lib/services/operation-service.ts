@@ -1,6 +1,7 @@
 import { db } from "@/lib/db"
 import { generateId } from "@/lib/utils/id"
 import { accountService } from "./account-service"
+import { normalizeEntryAmount, normalizeTransferAmounts } from "@/lib/utils/transaction-amount"
 import type { Operation, Entry, EntryEffect, OperationKind, OperationWithEntries } from "@/types"
 
 export const operationService = {
@@ -75,6 +76,7 @@ export const operationService = {
     description?: string
     occurredAt: number
   }): Promise<string> {
+    data = { ...data, ...normalizeEntryAmount(data.amount, data.effect) }
     const now = Date.now()
     const opId = generateId()
     const entryId = generateId()
@@ -83,45 +85,6 @@ export const operationService = {
       await db.operations.add({
         id: opId,
         kind: "normal",
-        description: data.description ?? "",
-        occurredAt: data.occurredAt,
-        fxRate: null,
-        fxBaseCurrency: null,
-        fxQuoteCurrency: null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      await db.entries.add({
-        id: entryId,
-        operationId: opId,
-        accountId: data.accountId,
-        role: "source",
-        effect: data.effect,
-        amount: data.amount,
-        createdAt: now,
-        updatedAt: now,
-      })
-      await accountService.recalculateBalance(data.accountId)
-    })
-
-    return opId
-  },
-
-  async createAdjustment(data: {
-    accountId: string
-    effect: EntryEffect
-    amount: number
-    description?: string
-    occurredAt: number
-  }): Promise<string> {
-    const now = Date.now()
-    const opId = generateId()
-    const entryId = generateId()
-
-    await db.transaction("rw", [db.operations, db.entries, db.accounts], async () => {
-      await db.operations.add({
-        id: opId,
-        kind: "adjustment",
         description: data.description ?? "",
         occurredAt: data.occurredAt,
         fxRate: null,
@@ -158,6 +121,9 @@ export const operationService = {
       throw new Error("Choose different source and destination accounts")
     }
 
+    const receivedAmountProvided = data.toAmount !== undefined
+    data = { ...data, ...normalizeTransferAmounts(data) }
+
     const fromAccount = await db.accounts.get(data.fromAccountId)
     const toAccount = await db.accounts.get(data.toAccountId)
     if (!fromAccount) throw new Error("Source account not found")
@@ -167,7 +133,7 @@ export const operationService = {
     const toAmount = data.toAmount ?? data.fromAmount
 
     if (!sameCurrency) {
-      if (!data.toAmount || data.toAmount <= 0) {
+      if (!receivedAmountProvided) {
         throw new Error("Enter the received amount for a cross-currency transfer")
       }
     }
@@ -265,16 +231,24 @@ export const operationService = {
 
       if (isMultiEntry) {
         // Transfer-like operation
-        const fromAccountId = data.fromAccountId!
-        const toAccountId = data.toAccountId!
-        const fromAmount = data.fromAmount!
-        const toAmount = data.toAmount ?? fromAmount
+        const { fromAccountId, toAccountId, fromAmount, toAmount } = normalizeTransferAmounts({
+          fromAccountId: data.fromAccountId!,
+          toAccountId: data.toAccountId!,
+          fromAmount: data.fromAmount!,
+          toAmount: data.toAmount,
+        })
+        if (fromAccountId === toAccountId) {
+          throw new Error("Choose different source and destination accounts")
+        }
 
         const fromAccount = await db.accounts.get(fromAccountId)
         const toAccount = await db.accounts.get(toAccountId)
         if (!fromAccount || !toAccount) throw new Error("Account not found")
 
         const sameCurrency = fromAccount.currency === toAccount.currency
+        if (!sameCurrency && data.toAmount === undefined) {
+          throw new Error("Enter the received amount for a cross-currency transfer")
+        }
         const fromCategory = await db.categories.get(fromAccount.categoryId)
         const toCategory = await db.categories.get(toAccount.categoryId)
         if (!fromCategory || !toCategory) throw new Error("Account category not found")
@@ -330,8 +304,10 @@ export const operationService = {
       } else {
         // Single-entry operation (normal/adjustment)
         const accountId = data.accountId ?? oldEntries[0]?.accountId
-        const effect = data.effect ?? oldEntries[0]?.effect ?? "decrease"
-        const amount = data.amount ?? oldEntries[0]?.amount ?? 0
+        const { effect, amount } = normalizeEntryAmount(
+          data.amount ?? oldEntries[0]?.amount ?? 0,
+          data.effect ?? oldEntries[0]?.effect ?? "decrease"
+        )
 
         await db.operations.update(operationId, {
           description: data.description ?? existing.description,

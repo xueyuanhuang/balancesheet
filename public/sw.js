@@ -1,4 +1,4 @@
-const CACHE_NAME = "balancesheet-v13-english"
+const CACHE_NAME = "balancesheet-v14-signed-transactions"
 const STATIC_ASSETS = ["/", "/dashboard", "/accounts", "/transactions", "/settings"]
 
 self.addEventListener("install", (event) => {

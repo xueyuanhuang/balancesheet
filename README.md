@@ -8,11 +8,11 @@ A mobile-first app for tracking assets, liabilities, and net worth. The built-in
 
 - **Accounts and categories:** Organize assets and liabilities in a tree. Accounts can belong directly to parent categories as well as their subcategories.
 - **Multiple currencies:** CNY, USD, HKD, and SGD, with exchange-rate conversion for combined totals.
-- **Activity:** Income, expenses, transfers, currency exchanges, borrowing, repayments, and adjustments, with account links and running balances.
+- **Activity:** Income, expenses, transfers, currency exchanges, borrowing, and repayments, with account links and running balances.
 - **Opening records:** Accounts with a nonzero opening balance have an “Account opened” record, dated when the account was created. Existing accounts are included automatically; zero openings are omitted.
 - **Monthly reporting:** Positive asset openings count as income and positive liability openings as expenses in the account creation month. Negative openings reverse the direction. These records are derived from accounts and do not add another ledger entry or change balances. Transfers and repayments remain excluded from monthly income/expense totals.
 - **Overview charts:** Net-worth history and six months of net income, income, and expenses. Net income is income minus expenses. Historical net-worth snapshots use current exchange rates; snapshots are recorded during Overview use, grouped by hour.
-- **Amount expressions:** Calculate amounts such as `1000 * 7.2 + 50` inside the transaction form.
+- **Amount expressions:** Calculate amounts such as `1000 * 7.2 + 50` inside the transaction form. Negative amounts switch income/expense when the field is finished or submitted. A negative amount on either side of a transfer reverses it once, keeping each amount with its account and currency. New adjustments are no longer offered; existing adjustment history remains readable and editable.
 - **Privacy mode:** Hide amounts while keeping chart shapes visible.
 - **Portable data:** Full JSON backup and restore, plus CSV export of recorded transactions. JSON import replaces the destination ledger; it does not merge. Opening records are reconstructed from backed-up accounts. CSV contains recorded transactions only.
 - **PWA and iOS:** Install the web app on a home screen or use the included Capacitor iOS project.
@@ -36,7 +36,7 @@ pnpm lint
 pnpm build
 ```
 
-Tests use Node's built-in test runner and the existing TypeScript dependency. They cover opening activity, filters, ordering, monthly reporting, currency conversion, and unchanged stored balances.
+Tests use Node's built-in test runner, TypeScript, and an in-memory IndexedDB. They cover opening activity, monthly reporting, signed amounts, reversed transfers, currency conversion, balance recalculation, and rollback after invalid edits.
 
 ## Architecture and release
 

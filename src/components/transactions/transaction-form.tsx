@@ -11,14 +11,15 @@ import { operationService } from "@/lib/services/operation-service"
 import { useAccount } from "@/lib/hooks/use-accounts"
 import { useCategory } from "@/lib/hooks/use-categories"
 import { getCurrencySymbol } from "@/lib/utils/constants"
+import { normalizeEntryAmount, normalizeTransferAmounts } from "@/lib/utils/transaction-amount"
 import { toast } from "sonner"
 import type { OperationWithEntries, EntryEffect } from "@/types"
 
-type FormKind = "normal" | "transfer" | "adjustment"
+type FormKind = "normal" | "transfer"
 
 function getAmountError(label: string, cents: number, status: AmountInputStatus | null): string | null {
   if (!status) {
-    return cents <= 0 ? `Enter ${label.toLowerCase()}` : null
+    return !Number.isSafeInteger(cents) || cents === 0 ? `Enter ${label.toLowerCase()}` : null
   }
 
   if (!status.hasInput) {
@@ -48,8 +49,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   const initKind: FormKind = useMemo(() => {
     if (!initialData) return "normal"
     const k = initialData.operation.kind
-    if (k === "normal") return "normal"
-    if (k === "adjustment") return "adjustment"
+    if (k === "normal" || k === "adjustment") return "normal"
     return "transfer" // transfer, fx_transfer, liability_repayment, liability_drawdown
   }, [initialData])
 
@@ -115,10 +115,37 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
 
   // Compute display exchange rate (only for cross-currency)
   const fxDisplay = useMemo(() => {
-    if (!isCrossCurrency || fromAmount <= 0 || toAmount <= 0) return null
-    const rate = (toAmount / fromAmount).toFixed(4)
+    if (!isCrossCurrency || !fromAmount || !toAmount) return null
+    const rate = Math.abs(toAmount / fromAmount).toFixed(4)
     return `1 ${fromCurrency} = ${rate} ${toCurrency}`
   }, [isCrossCurrency, fromAmount, toAmount, fromCurrency, toCurrency])
+
+  const commitSingleAmount = (cents: number) => {
+    if (cents >= 0) return
+    const normalized = normalizeEntryAmount(cents, effect)
+    setAmount(normalized.amount)
+    setEffect(normalized.effect)
+    setAmountStatus(null)
+    toast.info(normalized.effect === "increase" ? "Changed to income" : "Changed to expense")
+  }
+
+  const commitTransferAmounts = () => {
+    if (fromAmount >= 0 && (!showDualAmounts || toAmount >= 0)) return
+    // Wait for both fields to be complete before reversing an FX/fee transfer.
+    if (getAmountError("Amount sent", fromAmount, fromAmountStatus) ||
+      (showDualAmounts && getAmountError("Amount received", toAmount, toAmountStatus))) return
+    const normalized = normalizeTransferAmounts({
+      fromAccountId, toAccountId, fromAmount,
+      toAmount: showDualAmounts ? toAmount : undefined,
+    })
+    setFromAccountId(normalized.fromAccountId)
+    setToAccountId(normalized.toAccountId)
+    setFromAmount(normalized.fromAmount)
+    setToAmount(normalized.toAmount)
+    setFromAmountStatus(null)
+    setToAmountStatus(null)
+    toast.info("Transfer direction reversed")
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,23 +174,20 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           return
         }
 
-        const effectiveToAmount = showDualAmounts ? toAmount : undefined
+        const normalized = normalizeTransferAmounts({
+          fromAccountId, toAccountId, fromAmount,
+          toAmount: showDualAmounts ? toAmount : undefined,
+        })
 
         if (mode === "create") {
           await operationService.createTransfer({
-            fromAccountId,
-            toAccountId,
-            fromAmount,
-            toAmount: effectiveToAmount,
+            ...normalized,
             description,
             occurredAt: timestamp,
           })
         } else if (initialData) {
           await operationService.updateOperation(initialData.operation.id, {
-            fromAccountId,
-            toAccountId,
-            fromAmount,
-            toAmount: effectiveToAmount ?? fromAmount,
+            ...normalized,
             description,
             occurredAt: timestamp,
           })
@@ -181,36 +205,27 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           return
         }
 
+        const normalized = normalizeEntryAmount(amount, effect)
         // For liability accounts, flip the effect:
         // User sees "Expense" (decrease) → store as "increase" (debt goes up)
         // User sees "Income" (increase) → store as "decrease" (debt goes down)
         const storageEffect: EntryEffect = isLiability
-          ? (effect === "increase" ? "decrease" : "increase")
-          : effect
+          ? (normalized.effect === "increase" ? "decrease" : "increase")
+          : normalized.effect
 
         if (mode === "create") {
-          if (kind === "normal") {
-            await operationService.createNormal({
-              accountId,
-              effect: storageEffect,
-              amount,
-              description,
-              occurredAt: timestamp,
-            })
-          } else {
-            await operationService.createAdjustment({
-              accountId,
-              effect: storageEffect,
-              amount,
-              description,
-              occurredAt: timestamp,
-            })
-          }
+          await operationService.createNormal({
+            accountId,
+            effect: storageEffect,
+            amount: normalized.amount,
+            description,
+            occurredAt: timestamp,
+          })
         } else if (initialData) {
           await operationService.updateOperation(initialData.operation.id, {
             accountId,
             effect: storageEffect,
-            amount,
+            amount: normalized.amount,
             description,
             occurredAt: timestamp,
           })
@@ -233,7 +248,6 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
           <TabsList className="w-full">
             <TabsTrigger value="normal" className="flex-1">General</TabsTrigger>
             <TabsTrigger value="transfer" className="flex-1">Transfer</TabsTrigger>
-            <TabsTrigger value="adjustment" className="flex-1">Adjustment</TabsTrigger>
           </TabsList>
         </Tabs>
       )}
@@ -273,6 +287,9 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                   onChange={setFromAmount}
                   currency={fromCurrency}
                   enableExpression
+                  allowNegative
+                  onCommit={commitTransferAmounts}
+                  ariaLabel="Amount sent"
                   onStatusChange={setFromAmountStatus}
                 />
               </div>
@@ -285,6 +302,9 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                   onChange={setToAmount}
                   currency={toCurrency}
                   enableExpression
+                  allowNegative
+                  onCommit={commitTransferAmounts}
+                  ariaLabel="Amount received"
                   onStatusChange={setToAmountStatus}
                 />
               </div>
@@ -295,7 +315,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               )}
               {!isCrossCurrency && hasFee && fromAmount > 0 && toAmount > 0 && fromAmount !== toAmount && (
                 <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
-                  Fee: {getCurrencySymbol(fromCurrency)}{((fromAmount - toAmount) / 100).toFixed(2)}
+                  {fromAmount > toAmount ? "Fee" : "Fee refund"}: {getCurrencySymbol(fromCurrency)}{(Math.abs(fromAmount - toAmount) / 100).toFixed(2)}
                 </div>
               )}
             </>
@@ -308,25 +328,31 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
                   onChange={(v) => { setFromAmount(v); setToAmount(v) }}
                   currency={fromCurrency}
                   enableExpression
+                  allowNegative
+                  onCommit={commitTransferAmounts}
                   onStatusChange={setFromAmountStatus}
                 />
               </div>
-              {/* Fee toggle for same-currency transfers */}
-              {!isCrossCurrency && fromAccountId && toAccountId && (
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={hasFee}
-                    onChange={(e) => {
-                      setHasFee(e.target.checked)
-                      if (!e.target.checked) setToAmount(fromAmount)
-                    }}
-                    className="rounded border-gray-300"
-                  />
-                  <span className="text-muted-foreground">Include a fee (sent and received amounts differ)</span>
-                </label>
-              )}
+
             </>
+          )}
+          {/* Fee toggle for same-currency transfers */}
+          {!isCrossCurrency && fromAccountId && toAccountId && (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={hasFee}
+                onChange={(e) => {
+                  setHasFee(e.target.checked)
+                  if (!e.target.checked) {
+                    setToAmount(fromAmount)
+                    setToAmountStatus(null)
+                  }
+                }}
+                className="rounded border-gray-300"
+              />
+              <span className="text-muted-foreground">Include a fee (sent and received amounts differ)</span>
+            </label>
           )}
         </>
       ) : (
@@ -336,13 +362,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             <AccountPicker
               value={accountId || null}
               onChange={setAccountId}
-              sortMode={
-                kind === "adjustment"
-                  ? "recentAdjustment"
-                  : effect === "decrease"
-                    ? "recentExpense"
-                    : "recentIncome"
-              }
+              sortMode={effect === "decrease" ? "recentExpense" : "recentIncome"}
             />
           </div>
           <div className="space-y-2">
@@ -351,6 +371,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               <Button
                 type="button"
                 variant={effect === "decrease" ? "default" : "outline"}
+                aria-pressed={effect === "decrease"}
                 className="flex-1"
                 onClick={() => setEffect("decrease")}
               >
@@ -359,6 +380,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               <Button
                 type="button"
                 variant={effect === "increase" ? "default" : "outline"}
+                aria-pressed={effect === "increase"}
                 className="flex-1"
                 onClick={() => setEffect("increase")}
               >
@@ -374,6 +396,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               onChange={setAmount}
               currency={singleCurrency}
               enableExpression
+              allowNegative
+              onCommit={commitSingleAmount}
               onStatusChange={setAmountStatus}
             />
           </div>

@@ -142,7 +142,7 @@ class ExpressionParser {
   }
 }
 
-export function evaluateAmountExpression(raw: string): AmountInputStatus {
+export function evaluateAmountExpression(raw: string, allowNegative = false): AmountInputStatus {
   if (!raw.trim()) {
     return {
       raw,
@@ -169,15 +169,17 @@ export function evaluateAmountExpression(raw: string): AmountInputStatus {
 
   try {
     const result = new ExpressionParser(normalized).parse()
-    const cents = Math.round(result * 100)
+    const cents = Math.sign(result) * Math.round(Math.abs(result) * 100)
+    const safe = Number.isSafeInteger(cents)
+    const valid = safe && (allowNegative ? cents !== 0 : cents > 0)
 
     return {
       raw,
-      cents,
+      cents: safe ? cents : 0,
       hasInput: true,
-      hasResult: true,
-      isValid: cents > 0,
-      error: cents > 0 ? null : "Must be greater than 0",
+      hasResult: safe,
+      isValid: valid,
+      error: valid ? null : !safe ? "Amount is too large" : allowNegative ? "Must not be 0" : "Must be greater than 0",
     }
   } catch (error) {
     const message =

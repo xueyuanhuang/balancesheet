@@ -46,6 +46,9 @@ interface AmountInputProps {
   className?: string
   currency?: string
   enableExpression?: boolean
+  allowNegative?: boolean
+  onCommit?: (cents: number) => void
+  ariaLabel?: string
   onStatusChange?: (status: AmountInputStatus) => void
 }
 
@@ -56,13 +59,22 @@ export function AmountInput({
   className,
   currency = "CNY",
   enableExpression = false,
+  allowNegative = false,
+  onCommit,
+  ariaLabel = "Amount",
   onStatusChange,
 }: AmountInputProps) {
-  const [display, setDisplay] = useState(() => formatInitial(value))
+  const [draft, setDraft] = useState(() => ({ value, display: formatInitial(value) }))
+  // Preserve the expression while typing, but follow external changes such
+  // as a direction switch or swapping the two transfer amounts.
+  if (draft.value !== value) {
+    setDraft({ value, display: formatInitial(value) })
+  }
+  const display = draft.value === value ? draft.display : formatInitial(value)
   const inputRef = useRef<HTMLInputElement>(null)
   const symbol = getCurrencySymbol(currency)
   const isWide = symbol.length > 1 // HK$ etc.
-  const expressionStatus = enableExpression ? evaluateAmountExpression(display) : null
+  const expressionStatus = enableExpression ? evaluateAmountExpression(display, allowNegative) : null
   const preview = expressionStatus?.hasResult ? `= ${formatAmount(expressionStatus.cents, currency)}` : ""
 
   const handleChange = useCallback(
@@ -75,10 +87,11 @@ export function AmountInput({
           return
         }
 
-        const status = evaluateAmountExpression(el.value)
-        setDisplay(el.value)
+        const status = evaluateAmountExpression(el.value, allowNegative)
+        const cents = status.hasResult ? status.cents : 0
+        setDraft({ value: cents, display: el.value })
         onStatusChange?.(status)
-        onChange(status.hasResult ? status.cents : 0)
+        onChange(cents)
         return
       }
 
@@ -92,10 +105,10 @@ export function AmountInput({
 
       // Format with thousands separator
       const formatted = addThousandsSep(raw)
-      setDisplay(formatted)
 
       // Update cents value
       const cents = parseToCents(raw)
+      setDraft({ value: cents, display: formatted })
       onChange(cents)
 
       // Restore cursor position, adjusting for added/removed commas
@@ -113,24 +126,26 @@ export function AmountInput({
         inputRef.current.setSelectionRange(newPos, newPos)
       })
     },
-    [enableExpression, onChange, onStatusChange]
+    [enableExpression, allowNegative, onChange, onStatusChange]
   )
 
   const handleBlur = useCallback(() => {
     if (enableExpression) {
+      const status = evaluateAmountExpression(display, allowNegative)
+      if (status.isValid) onCommit?.(status.cents)
       return
     }
 
     if (display === "" || display === ".") {
-      setDisplay("")
+      setDraft({ value: 0, display: "" })
       onChange(0)
       return
     }
     // Normalize: ensure trailing .00
     const raw = stripCommas(display)
     const cents = parseToCents(raw)
-    setDisplay(formatInitial(cents))
-  }, [display, enableExpression, onChange])
+    setDraft({ value: cents, display: formatInitial(cents) })
+  }, [display, enableExpression, allowNegative, onCommit, onChange])
 
   return (
     <div className={cn(enableExpression && "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2")}>
@@ -146,6 +161,7 @@ export function AmountInput({
           onChange={handleChange}
           onBlur={handleBlur}
           placeholder={placeholder}
+          aria-label={ariaLabel}
           className={cn(isWide ? "pl-11" : "pl-7", className)}
         />
       </div>
