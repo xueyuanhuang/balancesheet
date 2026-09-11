@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { AccountForm } from "@/components/accounts/account-form"
+import { Plus } from "lucide-react"
 import { AmountInput, type AmountInputStatus } from "@/components/shared/amount-input"
 import { AccountPicker } from "@/components/shared/account-picker"
 import { operationService } from "@/lib/services/operation-service"
@@ -86,6 +89,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   })
   const [loading, setLoading] = useState(false)
+  const [creatingAccount, setCreatingAccount] = useState(false)
+  const [savingAccount, setSavingAccount] = useState(false)
 
   // Look up selected accounts for currency info
   const singleAccount = useAccount(kind !== "transfer" ? accountId || undefined : undefined)
@@ -130,6 +135,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   }
 
   const commitTransferAmounts = () => {
+    // Keep the source in place while choosing or creating the destination.
+    if (!fromAccountId || !toAccountId) return
     if (fromAmount >= 0 && (!showDualAmounts || toAmount >= 0)) return
     // Wait for both fields to be complete before reversing an FX/fee transfer.
     if (getAmountError("Amount sent", fromAmount, fromAmountStatus) ||
@@ -241,6 +248,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   }
 
   return (
+    <Dialog open={creatingAccount} onOpenChange={(open) => { if (!savingAccount) setCreatingAccount(open) }}>
     <form onSubmit={handleSubmit} className="p-4 space-y-6">
       {/* Kind selector - only for create mode */}
       {mode === "create" && (
@@ -265,7 +273,13 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">To account</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium">To account</label>
+              <DialogTrigger render={<Button type="button" variant="ghost" size="sm" disabled={loading} />}>
+                <Plus className="size-4" />
+                New account
+              </DialogTrigger>
+            </div>
             <AccountPicker
               value={toAccountId || null}
               onChange={setToAccountId}
@@ -426,5 +440,26 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         {loading ? "Saving..." : mode === "create" ? "Add transaction" : "Save changes"}
       </Button>
     </form>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md" showCloseButton={!savingAccount}>
+        <DialogHeader>
+          <DialogTitle>New destination account</DialogTitle>
+          <DialogDescription>Create an account, then continue your transfer.</DialogDescription>
+        </DialogHeader>
+        {creatingAccount && (
+          <div className="-mx-4">
+            <AccountForm
+              mode="create"
+              defaultCurrency={fromCurrency}
+              onCreated={(id) => {
+                setToAccountId(id)
+                setCreatingAccount(false)
+              }}
+              onCancel={() => setCreatingAccount(false)}
+              onSavingChange={setSavingAccount}
+            />
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

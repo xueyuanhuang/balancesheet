@@ -20,15 +20,20 @@ import type { Account, CategoryTreeNode } from "@/types"
 interface AccountFormProps {
   mode: "create" | "edit"
   initialData?: Account
+  defaultCurrency?: string
+  onCreated?: (accountId: string) => void
+  onCancel?: () => void
+  onSavingChange?: (saving: boolean) => void
 }
 
-export function AccountForm({ mode, initialData }: AccountFormProps) {
+export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onCancel, onSavingChange }: AccountFormProps) {
   const router = useRouter()
   const [name, setName] = useState(initialData?.name ?? "")
   const [categoryId, setCategoryId] = useState(initialData?.categoryId ?? "")
   const [openingBalance, setOpeningBalance] = useState(initialData?.openingBalance ?? 0)
   const [currency, setCurrency] = useState(() => {
     if (initialData?.currency) return initialData.currency
+    if (defaultCurrency) return defaultCurrency
     if (typeof window !== "undefined") {
       return localStorage.getItem("lastCurrency") ?? "CNY"
     }
@@ -51,6 +56,8 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    if (loading) return
     if (!name.trim()) {
       toast.error("Enter an account name")
       return
@@ -61,9 +68,10 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
     }
 
     setLoading(true)
+    onSavingChange?.(true)
     try {
       if (mode === "create") {
-        await accountService.create({
+        const createdId = await accountService.create({
           name: name.trim(),
           categoryId,
           openingBalance,
@@ -73,6 +81,10 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
         localStorage.setItem("lastCurrency", currency)
         await categoryService.incrementUsageCount(categoryId)
         toast.success("Account created")
+        if (onCreated) {
+          onCreated(createdId)
+          return
+        }
       } else if (initialData) {
         await accountService.update(initialData.id, {
           name: name.trim(),
@@ -89,6 +101,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
       setLoading(false)
+      onSavingChange?.(false)
     }
   }
 
@@ -204,7 +217,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
     <form onSubmit={handleSubmit} className="p-4 space-y-6">
       <div className="space-y-2">
         <label className="text-sm font-medium">Account name</label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main checking account" maxLength={30} />
+        <Input aria-label="Account name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main checking account" maxLength={30} />
       </div>
 
       <div className="space-y-2">
@@ -239,7 +252,7 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
       <div className="space-y-2">
         <label className="text-sm font-medium">Currency</label>
         <Select value={currency} onValueChange={(v) => { if (v) setCurrency(v) }} disabled={hasEntries}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full" aria-label="Currency">
             <span data-slot="select-value" className="flex flex-1 text-left truncate">
               {CURRENCIES.find((c) => c.code === currency)?.symbol} {CURRENCIES.find((c) => c.code === currency)?.label}
             </span>
@@ -259,18 +272,23 @@ export function AccountForm({ mode, initialData }: AccountFormProps) {
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Opening balance</label>
-        <AmountInput value={openingBalance} onChange={setOpeningBalance} currency={currency} />
-        <p className="text-xs text-muted-foreground">Set the starting balance. Transactions will update it from here.</p>
+        <AmountInput value={openingBalance} onChange={setOpeningBalance} currency={currency} ariaLabel="Opening balance" />
+        <p className="text-xs text-muted-foreground">
+          {onCreated ? "Balance before this transfer. Leave at 0 for a new account." : "Set the starting balance. Transactions will update it from here."}
+        </p>
       </div>
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Note</label>
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note" />
+        <Input aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note" />
       </div>
 
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Saving..." : mode === "create" ? "Create account" : "Save changes"}
-      </Button>
+      <div className="flex gap-2">
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>}
+        <Button type="submit" className="flex-1" disabled={loading}>
+          {loading ? "Saving..." : mode === "create" ? onCreated ? "Create and select account" : "Create account" : "Save changes"}
+        </Button>
+      </div>
     </form>
   )
 }
