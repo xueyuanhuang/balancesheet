@@ -213,21 +213,32 @@ export const operationService = {
       amount?: number
       description?: string
       occurredAt?: number
+      removeAccountIds?: string[]
     }
   ): Promise<void> {
-    const existing = await db.operations.get(operationId)
-    if (!existing) throw new Error("Transaction not found")
-
-    const oldEntries = await db.entries.where("operationId").equals(operationId).toArray()
-    const oldAccountIds = [...new Set(oldEntries.map((e) => e.accountId))]
-
     await db.transaction("rw", [db.operations, db.entries, db.accounts, db.categories], async () => {
+      const existing = await db.operations.get(operationId)
+      if (!existing) throw new Error("Transaction not found")
+      const oldEntries = await db.entries.where("operationId").equals(operationId).toArray()
+      const oldAccountIds = [...new Set(oldEntries.map((e) => e.accountId))]
+      const removeAccountIds = [...new Set(data.removeAccountIds ?? [])]
+      const isMultiEntry = existing.kind !== "normal" && existing.kind !== "adjustment"
+
+      if (removeAccountIds.length > 0 && !isMultiEntry) {
+        throw new Error("Accounts can only be removed when correcting a transfer")
+      }
+      for (const accountId of removeAccountIds) {
+        if (!oldAccountIds.includes(accountId)) {
+          throw new Error("Only a previous account in this transfer can be removed")
+        }
+        if (accountId === data.fromAccountId || accountId === data.toAccountId) {
+          throw new Error("Choose a different account before removing the previous account")
+        }
+      }
       const now = Date.now()
 
       // Delete old entries
       await db.entries.where("operationId").equals(operationId).delete()
-
-      const isMultiEntry = existing.kind !== "normal" && existing.kind !== "adjustment"
 
       if (isMultiEntry) {
         // Transfer-like operation
@@ -300,6 +311,18 @@ export const operationService = {
         const allAccountIds = [...new Set([...oldAccountIds, fromAccountId, toAccountId])]
         for (const accId of allAccountIds) {
           await accountService.recalculateBalance(accId)
+        }
+
+        // All-or-nothing: a concurrent/new transaction must prevent cleanup,
+        // and roll back the transfer correction rather than leave a partial save.
+        for (const accountId of removeAccountIds) {
+          const account = await db.accounts.get(accountId)
+          if (!account) throw new Error("The previous account no longer exists")
+          const entryCount = await db.entries.where("accountId").equals(accountId).count()
+          if (entryCount > 0) {
+            throw new Error(`"${account.name}" has other transactions. Keep the account to save this transfer.`)
+          }
+          await db.accounts.delete(accountId)
         }
       } else {
         // Single-entry operation (normal/adjustment)

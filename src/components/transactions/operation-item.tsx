@@ -2,7 +2,7 @@
 
 import { Fragment } from "react"
 import Link from "next/link"
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Settings2 } from "lucide-react"
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Settings2, Pencil } from "lucide-react"
 import { AmountDisplay } from "@/components/shared/amount-display"
 import { formatDateTime, formatAmount } from "@/lib/utils/format"
 import { useAccount } from "@/lib/hooks/use-accounts"
@@ -129,9 +129,13 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
         <Link
           href={`/transactions/edit?id=${operation.id}`}
           aria-label={editLabel}
-          className="block min-w-0 min-h-0 text-sm font-medium truncate after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+          className="flex min-w-0 min-h-0 items-center gap-2 text-sm font-medium after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
         >
-          {primaryText}
+          <span className="truncate">{primaryText}</span>
+          <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground">
+            <Pencil className="size-3" aria-hidden="true" />
+            Edit
+          </span>
         </Link>
         <div className="flex items-center min-w-0 text-xs text-muted-foreground mt-0.5">
           <span className={cn(

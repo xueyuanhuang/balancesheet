@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect, useRef } from "react"
+import { useLiveQuery } from "dexie-react-hooks"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,9 +12,11 @@ import { Plus } from "lucide-react"
 import { AmountInput, type AmountInputStatus } from "@/components/shared/amount-input"
 import { AccountPicker } from "@/components/shared/account-picker"
 import { operationService } from "@/lib/services/operation-service"
+import { db } from "@/lib/db"
 import { useAccount } from "@/lib/hooks/use-accounts"
 import { useCategory } from "@/lib/hooks/use-categories"
 import { getCurrencySymbol } from "@/lib/utils/constants"
+import { formatAmount } from "@/lib/utils/format"
 import { normalizeEntryAmount, normalizeTransferAmounts } from "@/lib/utils/transaction-amount"
 import { toast } from "sonner"
 import type { OperationWithEntries, EntryEffect } from "@/types"
@@ -91,6 +94,34 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   const [loading, setLoading] = useState(false)
   const [creatingAccount, setCreatingAccount] = useState(false)
   const [savingAccount, setSavingAccount] = useState(false)
+  const [removeAccountIds, setRemoveAccountIds] = useState<string[]>([])
+
+  const operationId = mode === "edit" ? initialData?.operation.id : undefined
+  const previousAccounts = useLiveQuery(async () => {
+    if (!operationId) return []
+    const entries = await db.entries.where("operationId").equals(operationId).toArray()
+    const ids = [...new Set(entries.map((entry) => entry.accountId))]
+    const accounts = await db.accounts.bulkGet(ids)
+    return Promise.all(accounts.flatMap((account) => account ? [account] : []).map(async (account) => ({
+      account,
+      hasOtherTransactions: await db.entries.where("accountId").equals(account.id)
+        .filter((entry) => entry.operationId !== operationId).count() > 0,
+    })))
+  }, [operationId], [])
+  const detachedAccounts = kind === "transfer"
+    ? previousAccounts.filter(({ account }) => account.id !== fromAccountId && account.id !== toAccountId)
+    : []
+  const selectedRemovalIds = removeAccountIds.filter((id) =>
+    detachedAccounts.some(({ account }) => account.id === id))
+
+  const selectFromAccount = (id: string) => {
+    setFromAccountId(id)
+    setRemoveAccountIds((ids) => ids.filter((accountId) => accountId !== id))
+  }
+  const selectToAccount = (id: string) => {
+    setToAccountId(id)
+    setRemoveAccountIds((ids) => ids.filter((accountId) => accountId !== id))
+  }
 
   // Look up selected accounts for currency info
   const singleAccount = useAccount(kind !== "transfer" ? accountId || undefined : undefined)
@@ -156,6 +187,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading || savingAccount) return
     const timestamp = new Date(occurredAt).getTime()
     setLoading(true)
 
@@ -197,6 +229,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             ...normalized,
             description,
             occurredAt: timestamp,
+            removeAccountIds: selectedRemovalIds,
           })
         }
       } else {
@@ -239,7 +272,11 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         }
       }
       toast.success(mode === "create" ? "Transaction saved" : "Changes saved")
-      router.back()
+      if (selectedRemovalIds.length > 0) {
+        router.replace("/transactions")
+      } else {
+        router.back()
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong")
     } finally {
@@ -266,7 +303,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             <label className="text-sm font-medium">From account</label>
             <AccountPicker
               value={fromAccountId || null}
-              onChange={setFromAccountId}
+              onChange={selectFromAccount}
               label="Select source account"
               excludeId={toAccountId || undefined}
               sortMode="recentTransferSource"
@@ -282,12 +319,36 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             </div>
             <AccountPicker
               value={toAccountId || null}
-              onChange={setToAccountId}
+              onChange={selectToAccount}
               label="Select destination account"
               excludeId={fromAccountId || undefined}
               sortMode="recentTransferTarget"
             />
           </div>
+
+          {detachedAccounts.map(({ account, hasOtherTransactions }) => (
+            <div key={account.id} className="rounded-lg border p-3 space-y-2">
+              <label className="flex items-start gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  className="mt-1 shrink-0"
+                  checked={removeAccountIds.includes(account.id)}
+                  disabled={loading || (hasOtherTransactions && !removeAccountIds.includes(account.id))}
+                  onChange={(event) => setRemoveAccountIds((ids) => event.target.checked
+                    ? [...new Set([...ids, account.id])]
+                    : ids.filter((id) => id !== account.id))}
+                />
+                <span>Remove previous account: {account.name}</span>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                {hasOtherTransactions
+                  ? "This account has other transactions and must be kept. You can still change this transfer."
+                  : `Optional. Save changes will remove this account${account.openingBalance !== 0
+                    ? ` and its opening balance of ${formatAmount(account.openingBalance, account.currency)}`
+                    : ""}. Leave unchecked to keep it.`}
+              </p>
+            </div>
+          ))}
 
           {/* Amount section */}
           {showDualAmounts ? (
@@ -436,7 +497,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button type="submit" className="w-full" disabled={loading || savingAccount}>
         {loading ? "Saving..." : mode === "create" ? "Add transaction" : "Save changes"}
       </Button>
     </form>
@@ -451,7 +512,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               mode="create"
               defaultCurrency={fromCurrency}
               onCreated={(id) => {
-                setToAccountId(id)
+                selectToAccount(id)
                 setCreatingAccount(false)
               }}
               onCancel={() => setCreatingAccount(false)}

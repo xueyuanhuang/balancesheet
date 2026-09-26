@@ -141,3 +141,119 @@ test("legacy adjustment history stays editable while the creation API is removed
   assert.equal(saved.entries[0].effect, "increase")
   assert.equal(await balance("cash"), 102000)
 })
+
+async function ledgerSnapshot(db) {
+  return {
+    accounts: await db.accounts.toArray(),
+    operations: await db.operations.toArray(),
+    entries: await db.entries.toArray(),
+  }
+}
+
+test("changing a transfer destination preserves the old account unless removal is explicitly requested", async (t) => {
+  const { db, service, balance } = await fixture(t)
+  // Legacy accounts and transfers have no creation-link metadata.
+  const id = await service.createTransfer({ fromAccountId: "cash", toAccountId: "savings", fromAmount: 12000, occurredAt: 100 })
+
+  await service.updateOperation(id, { fromAccountId: "cash", toAccountId: "card", fromAmount: 8000 })
+
+  assert.equal((await service.getById(id)).kind, "liability_repayment")
+  assert.equal(await balance("cash"), 92000)
+  assert.equal(await balance("savings"), 100000, "the previous destination is restored to its opening balance")
+  assert.equal(await balance("card"), 42000)
+  assert.equal(await db.accounts.count(), 4)
+  assert.deepEqual((await service.getWithEntries(id)).entries.map((e) => [e.accountId, e.effect, e.amount]), [
+    ["cash", "decrease", 8000], ["card", "decrease", 8000],
+  ])
+})
+
+test("correcting a transfer can remove its unused old destination and that account's opening balance", async (t) => {
+  const { db, service, balance } = await fixture(t)
+  await db.accounts.add(account({ id: "mistake", openingBalance: 12300, balance: 12300 }))
+  const id = await service.createTransfer({ fromAccountId: "cash", toAccountId: "mistake", fromAmount: 12000, occurredAt: 100 })
+  const correction = { fromAccountId: "cash", toAccountId: "savings", fromAmount: 8000, description: "Correct destination", occurredAt: 200 }
+
+  await service.updateOperation(id, { ...correction, removeAccountIds: ["mistake"] })
+
+  assert.equal(await db.accounts.get("mistake"), undefined)
+  assert.equal(await db.entries.where("accountId").equals("mistake").count(), 0)
+  assert.equal(await balance("cash"), 92000)
+  assert.equal(await balance("savings"), 108000)
+  assert.equal((await db.accounts.toArray()).reduce((sum, a) => sum + a.balance, 0), 350000, "the removed opening balance no longer contributes to account totals")
+  const saved = await service.getWithEntries(id)
+  assert.equal(saved.operation.description, correction.description)
+  assert.equal(saved.operation.occurredAt, 200)
+
+  await service.updateOperation(id, correction)
+  assert.equal(await balance("cash"), 92000, "saving the corrected transfer again does not apply its effect twice")
+  assert.equal(await balance("savings"), 108000)
+  assert.equal(await db.operations.count(), 1)
+  assert.equal(await db.entries.count(), 2)
+})
+
+test("unsafe account removal rolls back the entire transfer edit", async (t) => {
+  const { db, service } = await fixture(t)
+  const id = await service.createTransfer({ fromAccountId: "cash", toAccountId: "savings", fromAmount: 12000, occurredAt: 100 })
+  await service.createNormal({ accountId: "savings", effect: "increase", amount: 500, occurredAt: 150 })
+  const before = await ledgerSnapshot(db)
+  for (const data of [
+    { fromAccountId: "cash", toAccountId: "card", fromAmount: 8000, removeAccountIds: ["savings"] },
+    // The first removal succeeds inside the transaction before the second is rejected.
+    { fromAccountId: "usd", toAccountId: "card", fromAmount: 1000, toAmount: 7000, removeAccountIds: ["cash", "savings"] },
+    { fromAccountId: "cash", toAccountId: "savings", fromAmount: 8000, removeAccountIds: ["usd"] },
+    { fromAccountId: "cash", toAccountId: "card", fromAmount: -8000, removeAccountIds: ["cash"] },
+  ]) {
+    await assert.rejects(service.updateOperation(id, { ...data, description: "Must roll back", occurredAt: 300 }))
+    assert.deepEqual(await ledgerSnapshot(db), before, "failed cleanup must preserve accounts, balances, entries, and operation metadata")
+  }
+})
+
+test("normal transactions cannot remove accounts during an edit", async (t) => {
+  const { db, service } = await fixture(t)
+  const id = await service.createNormal({ accountId: "cash", effect: "decrease", amount: 1000, occurredAt: 100 })
+  const before = await ledgerSnapshot(db)
+
+  await assert.rejects(service.updateOperation(id, { accountId: "savings", amount: 2000, removeAccountIds: ["cash"] }))
+
+  assert.deepEqual(await ledgerSnapshot(db), before)
+})
+
+test("FX destination correction with a negative amount swaps currencies and safely removes the old account", async (t) => {
+  const { db, service, balance } = await fixture(t)
+  await db.accounts.add(account({ id: "mistake" }))
+  const id = await service.createTransfer({ fromAccountId: "cash", toAccountId: "mistake", fromAmount: 12000, occurredAt: 100 })
+  await service.updateOperation(id, { fromAccountId: "cash", toAccountId: "usd", fromAmount: -70000, toAmount: 10000, removeAccountIds: ["mistake"] })
+
+  const saved = await service.getWithEntries(id)
+  assert.equal(saved.operation.kind, "fx_transfer")
+  assert.equal(saved.operation.fxBaseCurrency, "USD")
+  assert.equal(saved.operation.fxQuoteCurrency, "CNY")
+  assert.equal(saved.operation.fxRate, 7)
+  assert.deepEqual(saved.entries.map((e) => [e.accountId, e.role, e.effect, e.amount]), [
+    ["usd", "source", "decrease", 10000], ["cash", "target", "increase", 70000],
+  ])
+  assert.equal(await balance("cash"), 170000)
+  assert.equal(await balance("usd"), 90000)
+  assert.equal(await db.accounts.get("mistake"), undefined)
+
+  await service.updateOperation(id, { fromAccountId: "usd", toAccountId: "cash", fromAmount: 10000, toAmount: 70000 })
+  assert.equal(await balance("cash"), 170000)
+  assert.equal(await balance("usd"), 90000)
+})
+
+test("correcting a transfer to a negative liability transfer restores the old effects and records borrowing", async (t) => {
+  const { db, service, balance } = await fixture(t)
+  await db.accounts.add(account({ id: "mistake", openingBalance: 3000, balance: 3000 }))
+  const id = await service.createTransfer({ fromAccountId: "cash", toAccountId: "mistake", fromAmount: 12000, occurredAt: 100 })
+  await service.updateOperation(id, { fromAccountId: "cash", toAccountId: "card", fromAmount: -20000, removeAccountIds: ["mistake"] })
+
+  const saved = await service.getWithEntries(id)
+  assert.equal(saved.operation.kind, "liability_drawdown")
+  assert.equal(saved.operation.fxRate, null)
+  assert.deepEqual(saved.entries.map((e) => [e.accountId, e.role, e.effect, e.amount]), [
+    ["card", "source", "increase", 20000], ["cash", "target", "increase", 20000],
+  ])
+  assert.equal(await balance("cash"), 120000)
+  assert.equal(await balance("card"), 70000)
+  assert.equal(await db.accounts.get("mistake"), undefined)
+})
