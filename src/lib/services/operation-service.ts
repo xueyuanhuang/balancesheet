@@ -371,16 +371,27 @@ export const operationService = {
 
   // ─── Delete ───
 
-  async deleteOperation(operationId: string): Promise<void> {
-    const entries = await db.entries.where("operationId").equals(operationId).toArray()
-    const accountIds = [...new Set(entries.map((e) => e.accountId))]
-
-    await db.transaction("rw", [db.operations, db.entries, db.accounts], async () => {
+  async deleteOperation(operationId: string): Promise<string[]> {
+    return db.transaction("rw", [db.operations, db.entries, db.accounts], async () => {
+      const operation = await db.operations.get(operationId)
+      if (!operation) throw new Error("Transaction not found")
+      const entries = await db.entries.where("operationId").equals(operationId).toArray()
+      const accountIds = [...new Set(entries.map((e) => e.accountId))]
       await db.entries.where("operationId").equals(operationId).delete()
       await db.operations.delete(operationId)
+      const deletedAccountIds: string[] = []
+      const isTransfer = operation.kind !== "normal" && operation.kind !== "adjustment"
       for (const accId of accountIds) {
+        const account = await db.accounts.get(accId)
+        if (isTransfer && operation.createdAccountIds?.includes(accId) && account?.openingBalance === 0 &&
+          await db.entries.where("accountId").equals(accId).count() === 0) {
+          await db.accounts.delete(accId)
+          deletedAccountIds.push(accId)
+          continue
+        }
         await accountService.recalculateBalance(accId)
       }
+      return deletedAccountIds
     })
   },
 }

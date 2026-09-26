@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useRouter } from "next/navigation"
 import { Trash2 } from "lucide-react"
@@ -7,18 +8,20 @@ import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/layout/page-header"
 import { TransactionForm } from "@/components/transactions/transaction-form"
 import { OpeningRecordEditor } from "@/components/transactions/opening-record-editor"
+import { DeleteRecordDialog } from "@/components/transactions/delete-record-dialog"
 import { useLiveQuery } from "dexie-react-hooks"
 import { db } from "@/lib/db"
 import { useOperation } from "@/lib/hooks/use-operations"
-import { operationService } from "@/lib/services/operation-service"
+import type { ActivityDeleteTarget } from "@/lib/services/activity-service"
 import { findAccountCreationTransfer } from "@/lib/utils/activity"
-import { toast } from "sonner"
 
 export default function EditTransactionPage() {
   const searchParams = useSearchParams()
   const id = searchParams.get("id") ?? ""
   const openingAccountId = searchParams.get("openingAccountId") ?? ""
   const router = useRouter()
+  const [deleteTarget, setDeleteTarget] = useState<ActivityDeleteTarget | null>(null)
+  const closeDelete = useCallback(() => setDeleteTarget(null), [])
   const savedOperation = useOperation(id || undefined)
   const loadedOpening = useLiveQuery(async () => {
     if (!openingAccountId) return undefined
@@ -39,21 +42,26 @@ export default function EditTransactionPage() {
     ? savedOperation?.operation.id === id ? savedOperation : undefined
     : openingRecord?.transfer
 
-  const handleDelete = async () => {
-    if (!operationData) return
-    try {
-      await operationService.deleteOperation(operationData.operation.id)
-      toast.success("Deleted")
-      router.back()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not delete")
-    }
-  }
+  const deleteDialog = (
+    <DeleteRecordDialog
+      target={deleteTarget}
+      onClose={closeDelete}
+      onDeleted={() => router.replace("/transactions")}
+    />
+  )
 
   if (openingAccountId && !id && !operationData) {
     return (
       <div>
-        <PageHeader title="Opening balance" showBack />
+        <PageHeader
+          title="Opening balance"
+          showBack
+          rightAction={openingRecord?.account ? (
+            <Button variant="ghost" size="icon" aria-label="Delete opening record" onClick={() => setDeleteTarget({ type: "opening_balance", id: openingAccountId })}>
+              <Trash2 className="h-5 w-5 text-destructive" />
+            </Button>
+          ) : undefined}
+        />
         {openingRecord?.account ? (
           <OpeningRecordEditor key={openingAccountId} account={openingRecord.account} />
         ) : (
@@ -61,6 +69,7 @@ export default function EditTransactionPage() {
             {openingRecord === undefined ? "Loading..." : "Record not found"}
           </div>
         )}
+        {deleteDialog}
       </div>
     )
   }
@@ -80,11 +89,12 @@ export default function EditTransactionPage() {
         title={operationData.entries.length === 2 ? "Edit transfer" : "Edit transaction"}
         showBack
         rightAction={
-          <Button variant="ghost" size="icon" onClick={handleDelete}>
+          <Button variant="ghost" size="icon" aria-label="Delete record" onClick={() => setDeleteTarget({ type: "operation", id: operationData.operation.id })}>
             <Trash2 className="h-5 w-5 text-destructive" />
           </Button>
         }
       />
+      {deleteDialog}
       <TransactionForm
         key={operationData.operation.id}
         mode="edit"
