@@ -120,11 +120,12 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   })()
 
   return (
-    <Link
-      href={`/transactions/edit?id=${operation.id}`}
-      aria-label={editLabel}
-      className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <div className="relative isolate flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
+      <Link
+        href={`/transactions/edit?id=${encodeURIComponent(operation.id)}`}
+        aria-label={editLabel}
+        className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      />
       <div className={cn("shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
         <Icon className="h-4 w-4" />
       </div>
@@ -139,12 +140,14 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
               <Fragment key={index}>
                 {index > 0 && <span className="shrink-0" aria-hidden="true">→</span>}
                 {account ? (
-                  <span
+                  <Link
+                    href={`/accounts/detail?id=${encodeURIComponent(account.id)}`}
+                    aria-label={`View account: ${account.name}`}
                     title={account.name}
-                    className="min-w-0 truncate"
+                    className="relative z-10 min-h-0 min-w-0 truncate underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
                   >
                     {account.name}
-                  </span>
+                  </Link>
                 ) : (
                   <span className="truncate">Unknown account</span>
                 )}
@@ -195,6 +198,6 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
           </span>
         )}
       </div>
-    </Link>
+    </div>
   )
 }
