@@ -38,6 +38,8 @@ export interface Operation {
   fxRate: number | null
   fxBaseCurrency: string | null
   fxQuoteCurrency: string | null
+  // Accounts created as part of this transfer, eligible for cleanup if replaced.
+  createdAccountIds?: string[]
   createdAt: number
   updatedAt: number
 }

@@ -22,6 +22,7 @@ export const operationSchema = z.object({
   fxRate: z.number().nullable(),
   fxBaseCurrency: z.string().nullable(),
   fxQuoteCurrency: z.string().nullable(),
+  createdAccountIds: z.array(z.string().min(1)).optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 })

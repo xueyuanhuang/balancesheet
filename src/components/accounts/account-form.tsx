@@ -16,17 +16,18 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ChevronDown, ChevronRight, Check } from "lucide-react"
 import type { Account, CategoryTreeNode } from "@/types"
+import type { TransferAccountDraft } from "@/lib/services/operation-service"
 
 interface AccountFormProps {
   mode: "create" | "edit"
   initialData?: Account
   defaultCurrency?: string
-  onCreated?: (accountId: string) => void
+  onPrepared?: (account: Omit<TransferAccountDraft, "id">) => void
   onCancel?: () => void
   onSavingChange?: (saving: boolean) => void
 }
 
-export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onCancel, onSavingChange }: AccountFormProps) {
+export function AccountForm({ mode, initialData, defaultCurrency, onPrepared, onCancel, onSavingChange }: AccountFormProps) {
   const router = useRouter()
   const [name, setName] = useState(initialData?.name ?? "")
   const [categoryId, setCategoryId] = useState(initialData?.categoryId ?? "")
@@ -66,12 +67,16 @@ export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onC
       toast.error("Select a category")
       return
     }
+    if (mode === "create" && onPrepared) {
+      onPrepared({ name: name.trim(), categoryId, currency, note })
+      return
+    }
 
     setLoading(true)
     onSavingChange?.(true)
     try {
       if (mode === "create") {
-        const createdId = await accountService.create({
+        await accountService.create({
           name: name.trim(),
           categoryId,
           openingBalance,
@@ -81,10 +86,6 @@ export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onC
         localStorage.setItem("lastCurrency", currency)
         await categoryService.incrementUsageCount(categoryId)
         toast.success("Account created")
-        if (onCreated) {
-          onCreated(createdId)
-          return
-        }
       } else if (initialData) {
         await accountService.update(initialData.id, {
           name: name.trim(),
@@ -270,13 +271,13 @@ export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onC
         )}
       </div>
 
-      <div className="space-y-2">
+      {!onPrepared && <div className="space-y-2">
         <label className="text-sm font-medium">Opening balance</label>
         <AmountInput value={openingBalance} onChange={setOpeningBalance} currency={currency} ariaLabel="Opening balance" />
         <p className="text-xs text-muted-foreground">
-          {onCreated ? "Balance before this transfer. Leave at 0 for a new account." : "Set the starting balance. Transactions will update it from here."}
+          Set the starting balance. Transactions will update it from here.
         </p>
-      </div>
+      </div>}
 
       <div className="space-y-2">
         <label className="text-sm font-medium">Note</label>
@@ -286,7 +287,7 @@ export function AccountForm({ mode, initialData, defaultCurrency, onCreated, onC
       <div className="flex gap-2">
         {onCancel && <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>Cancel</Button>}
         <Button type="submit" className="flex-1" disabled={loading}>
-          {loading ? "Saving..." : mode === "create" ? onCreated ? "Create and select account" : "Create account" : "Save changes"}
+          {loading ? "Saving..." : mode === "create" ? onPrepared ? "Use this account" : "Create account" : "Save changes"}
         </Button>
       </div>
     </form>

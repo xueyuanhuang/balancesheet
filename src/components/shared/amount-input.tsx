@@ -99,7 +99,8 @@ export function AmountInput({
       const raw = stripCommas(el.value)
 
       // Validate: allow empty, digits, one dot, up to 2 decimal places
-      if (raw !== "" && !/^\d*\.?\d{0,2}$/.test(raw)) {
+      const numberPattern = allowNegative ? /^-?\d*\.?\d{0,2}$/ : /^\d*\.?\d{0,2}$/
+      if (raw !== "" && !numberPattern.test(raw)) {
         return
       }
 
@@ -136,7 +137,7 @@ export function AmountInput({
       return
     }
 
-    if (display === "" || display === ".") {
+    if (display === "" || display === "." || display === "-" || display === "-.") {
       setDraft({ value: 0, display: "" })
       onChange(0)
       return
@@ -156,7 +157,7 @@ export function AmountInput({
         <Input
           ref={inputRef}
           type="text"
-          inputMode={enableExpression ? "text" : "decimal"}
+          inputMode={enableExpression || allowNegative ? "text" : "decimal"}
           value={display}
           onChange={handleChange}
           onBlur={handleBlur}

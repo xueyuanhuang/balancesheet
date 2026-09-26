@@ -15,7 +15,7 @@ export function OpeningBalanceItem({ account }: { account: Account }) {
 
   return (
     <Link
-      href={`/accounts/edit?id=${account.id}`}
+      href={`/transactions/edit?openingAccountId=${account.id}`}
       aria-label={`Edit opening balance: ${account.name}, ${formatAmount(account.openingBalance, account.currency)}, ${formatDateTime(account.createdAt)}`}
       className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >

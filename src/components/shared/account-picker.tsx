@@ -17,6 +17,7 @@ type AccountPickerSortMode =
   | "recentTransferSource"
   | "recentTransferTarget"
 const EMPTY_SORT_VALUES: Record<string, number> = {}
+const EMPTY_ACCOUNTS: Account[] = []
 
 interface AccountPickerProps {
   value: string | null
@@ -24,6 +25,7 @@ interface AccountPickerProps {
   label?: string
   excludeId?: string
   sortMode?: AccountPickerSortMode
+  pendingAccounts?: Account[]
 }
 
 interface CategoryTreeNode {
@@ -286,12 +288,14 @@ export function AccountPicker({
   label = "Select an account",
   excludeId,
   sortMode = "recentAny",
+  pendingAccounts = EMPTY_ACCOUNTS,
 }: AccountPickerProps) {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const accounts = useAccounts()
+  const savedAccounts = useAccounts()
+  const accounts = useMemo(() => [...savedAccounts, ...pendingAccounts], [savedAccounts, pendingAccounts])
   const categories = useCategories()
   const recentSortValues = useRecentAccountSortValues(sortMode)
   const sortValues = recentSortValues ?? EMPTY_SORT_VALUES

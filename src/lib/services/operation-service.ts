@@ -4,6 +4,25 @@ import { accountService } from "./account-service"
 import { normalizeEntryAmount, normalizeTransferAmounts } from "@/lib/utils/transaction-amount"
 import type { Operation, Entry, EntryEffect, OperationKind, OperationWithEntries } from "@/types"
 
+export interface TransferAccountDraft {
+  id: string
+  name: string
+  categoryId: string
+  currency: string
+  note?: string
+}
+
+export interface TransferData {
+  fromAccountId: string
+  toAccountId: string
+  fromAmount: number
+  toAmount?: number
+  description?: string
+  occurredAt: number
+  newAccount?: TransferAccountDraft
+  newAccounts?: TransferAccountDraft[]
+}
+
 export const operationService = {
   // ─── Queries ───
 
@@ -109,94 +128,101 @@ export const operationService = {
     return opId
   },
 
-  async createTransfer(data: {
-    fromAccountId: string
-    toAccountId: string
-    fromAmount: number
-    toAmount?: number
-    description?: string
-    occurredAt: number
-  }): Promise<string> {
-    if (data.fromAccountId === data.toAccountId) {
+  async createTransfer(data: TransferData): Promise<string> {
+    const receivedAmountProvided = data.toAmount !== undefined
+    const normalized = normalizeTransferAmounts(data)
+    if (normalized.fromAccountId === normalized.toAccountId) {
       throw new Error("Choose different source and destination accounts")
     }
-
-    const receivedAmountProvided = data.toAmount !== undefined
-    data = { ...data, ...normalizeTransferAmounts(data) }
-
-    const fromAccount = await db.accounts.get(data.fromAccountId)
-    const toAccount = await db.accounts.get(data.toAccountId)
-    if (!fromAccount) throw new Error("Source account not found")
-    if (!toAccount) throw new Error("Destination account not found")
-
-    const sameCurrency = fromAccount.currency === toAccount.currency
-    const toAmount = data.toAmount ?? data.fromAmount
-
-    if (!sameCurrency) {
-      if (!receivedAmountProvided) {
-        throw new Error("Enter the received amount for a cross-currency transfer")
-      }
-    }
-
-    // Determine kind and effects based on account types
-    const fromCategory = await db.categories.get(fromAccount.categoryId)
-    const toCategory = await db.categories.get(toAccount.categoryId)
-    if (!fromCategory || !toCategory) throw new Error("Account category not found")
-
-    const { kind, fromEffect, toEffect } = determineKindAndEffects(
-      fromCategory.type,
-      toCategory.type,
-      sameCurrency
-    )
+    requireDate(data.occurredAt)
 
     const now = Date.now()
     const opId = generateId()
-
-    await db.transaction("rw", [db.operations, db.entries, db.accounts], async () => {
-      const fxRate = sameCurrency ? null : toAmount / data.fromAmount
-      const fxBaseCurrency = sameCurrency ? null : fromAccount.currency
-      const fxQuoteCurrency = sameCurrency ? null : toAccount.currency
+    await db.transaction("rw", [db.operations, db.entries, db.accounts, db.categories], async () => {
+      const createdAccountIds = await createTransferAccounts(data, normalized, now)
+      const fromAccount = await db.accounts.get(normalized.fromAccountId)
+      const toAccount = await db.accounts.get(normalized.toAccountId)
+      if (!fromAccount) throw new Error("Source account not found")
+      if (!toAccount) throw new Error("Destination account not found")
+      const sameCurrency = fromAccount.currency === toAccount.currency
+      if (!sameCurrency && !receivedAmountProvided) {
+        throw new Error("Enter the received amount for a cross-currency transfer")
+      }
+      const fromCategory = await db.categories.get(fromAccount.categoryId)
+      const toCategory = await db.categories.get(toAccount.categoryId)
+      if (!fromCategory || !toCategory) throw new Error("Account category not found")
+      const { kind, fromEffect, toEffect } = determineKindAndEffects(
+        fromCategory.type, toCategory.type, sameCurrency
+      )
 
       await db.operations.add({
         id: opId,
         kind,
         description: data.description ?? "",
         occurredAt: data.occurredAt,
-        fxRate,
-        fxBaseCurrency,
-        fxQuoteCurrency,
+        fxRate: sameCurrency ? null : normalized.toAmount / normalized.fromAmount,
+        fxBaseCurrency: sameCurrency ? null : fromAccount.currency,
+        fxQuoteCurrency: sameCurrency ? null : toAccount.currency,
+        ...(createdAccountIds.length > 0 ? { createdAccountIds } : {}),
         createdAt: now,
         updatedAt: now,
       })
-
       await db.entries.bulkAdd([
         {
-          id: generateId(),
-          operationId: opId,
-          accountId: data.fromAccountId,
-          role: "source" as const,
-          effect: fromEffect,
-          amount: data.fromAmount,
-          createdAt: now,
-          updatedAt: now,
+          id: generateId(), operationId: opId, accountId: normalized.fromAccountId,
+          role: "source" as const, effect: fromEffect, amount: normalized.fromAmount,
+          createdAt: now, updatedAt: now,
         },
         {
-          id: generateId(),
-          operationId: opId,
-          accountId: data.toAccountId,
-          role: "target" as const,
-          effect: toEffect,
-          amount: toAmount,
-          createdAt: now,
-          updatedAt: now,
+          id: generateId(), operationId: opId, accountId: normalized.toAccountId,
+          role: "target" as const, effect: toEffect, amount: normalized.toAmount,
+          createdAt: now, updatedAt: now,
         },
       ])
-
-      await accountService.recalculateBalance(data.fromAccountId)
-      await accountService.recalculateBalance(data.toAccountId)
+      await accountService.recalculateBalance(normalized.fromAccountId)
+      await accountService.recalculateBalance(normalized.toAccountId)
     })
-
     return opId
+  },
+
+  // Old inline creation could leave only an opening balance with no transfer.
+  // The correction screen supplies the source explicitly; there is no reliable
+  // historical source to infer from the account alone.
+  async convertOpeningToTransfer(
+    openingAccountId: string,
+    data: TransferData & { expectedOpeningBalance: number }
+  ): Promise<string> {
+    return db.transaction("rw", [db.operations, db.entries, db.accounts, db.categories], async () => {
+      const account = await db.accounts.get(openingAccountId)
+      if (!account) throw new Error("The opening account no longer exists")
+      if (account.openingBalance !== data.expectedOpeningBalance) {
+        throw new Error("The opening balance changed. Reopen the record before correcting it.")
+      }
+      const category = await db.categories.get(account.categoryId)
+      if (account.openingBalance <= 0 || category?.type !== "asset") {
+        throw new Error("Only a positive asset opening balance can be corrected as an incoming transfer")
+      }
+      if (await db.entries.where("accountId").equals(openingAccountId).count() > 0) {
+        throw new Error("This account already has transactions. Edit its existing transfer instead.")
+      }
+      const normalized = normalizeTransferAmounts(data)
+      if (normalized.fromAccountId === openingAccountId) {
+        throw new Error("Choose a different source account for this incoming transfer")
+      }
+      // Clear only after all stale-record checks. Any subsequent failure rolls
+      // back this change together with the transfer and newly created accounts.
+      await db.accounts.update(openingAccountId, { openingBalance: 0, balance: 0, updatedAt: Date.now() })
+      const operationId = await operationService.createTransfer(data)
+      if (normalized.toAccountId === openingAccountId) {
+        const operation = await db.operations.get(operationId)
+        await db.operations.update(operationId, {
+          createdAccountIds: [...new Set([...(operation?.createdAccountIds ?? []), openingAccountId])],
+        })
+      } else {
+        await db.accounts.delete(openingAccountId)
+      }
+      return operationId
+    })
   },
 
   // ─── Update ───
@@ -214,6 +240,8 @@ export const operationService = {
       description?: string
       occurredAt?: number
       removeAccountIds?: string[]
+      newAccount?: TransferAccountDraft
+      newAccounts?: TransferAccountDraft[]
     }
   ): Promise<void> {
     await db.transaction("rw", [db.operations, db.entries, db.accounts, db.categories], async () => {
@@ -223,9 +251,13 @@ export const operationService = {
       const oldAccountIds = [...new Set(oldEntries.map((e) => e.accountId))]
       const removeAccountIds = [...new Set(data.removeAccountIds ?? [])]
       const isMultiEntry = existing.kind !== "normal" && existing.kind !== "adjustment"
+      if (data.occurredAt !== undefined) requireDate(data.occurredAt)
 
       if (removeAccountIds.length > 0 && !isMultiEntry) {
         throw new Error("Accounts can only be removed when correcting a transfer")
+      }
+      if (!isMultiEntry && (data.newAccount || data.newAccounts?.length)) {
+        throw new Error("Accounts can only be created as part of a transfer")
       }
       for (const accountId of removeAccountIds) {
         if (!oldAccountIds.includes(accountId)) {
@@ -251,6 +283,15 @@ export const operationService = {
         if (fromAccountId === toAccountId) {
           throw new Error("Choose different source and destination accounts")
         }
+        const newAccountIds = await createTransferAccounts(data, { fromAccountId, toAccountId }, now)
+        // Only provenance that still belongs to an actual previous endpoint
+        // may authorize automatic cleanup. Existing accounts are never inferred.
+        const ownedAccountIds = [...new Set(existing.createdAccountIds ?? [])]
+          .filter((id) => oldAccountIds.includes(id))
+        const createdAccountIds = [...new Set([
+          ...ownedAccountIds.filter((id) => id === fromAccountId || id === toAccountId),
+          ...newAccountIds,
+        ])]
 
         const fromAccount = await db.accounts.get(fromAccountId)
         const toAccount = await db.accounts.get(toAccountId)
@@ -281,6 +322,7 @@ export const operationService = {
           fxRate,
           fxBaseCurrency,
           fxQuoteCurrency,
+          createdAccountIds,
           updatedAt: now,
         })
 
@@ -323,6 +365,15 @@ export const operationService = {
             throw new Error(`"${account.name}" has other transactions. Keep the account to save this transfer.`)
           }
           await db.accounts.delete(accountId)
+        }
+        // Replacing an account created for this transfer also undoes its
+        // creation. Reused accounts survive and relinquish ownership so a
+        // later edit cannot remove them after their other activity is deleted.
+        for (const accountId of ownedAccountIds) {
+          if (accountId === fromAccountId || accountId === toAccountId) continue
+          if (await db.entries.where("accountId").equals(accountId).count() === 0) {
+            await db.accounts.delete(accountId)
+          }
         }
       } else {
         // Single-entry operation (normal/adjustment)
@@ -375,6 +426,64 @@ export const operationService = {
 }
 
 // ─── Helpers ───
+
+function requireDate(occurredAt: number) {
+  if (!Number.isFinite(occurredAt) || !Number.isFinite(new Date(occurredAt).getTime())) {
+    throw new Error("Enter a valid transaction date")
+  }
+}
+
+async function createTransferAccounts(
+  data: { newAccount?: TransferAccountDraft; newAccounts?: TransferAccountDraft[] },
+  endpoints: { fromAccountId: string; toAccountId: string },
+  now: number
+): Promise<string[]> {
+  const drafts = [...(data.newAccounts ?? []), ...(data.newAccount ? [data.newAccount] : [])]
+  const ids = new Set<string>()
+  for (const draft of drafts) {
+    if (typeof draft.id !== "string" || !draft.id.trim() || ids.has(draft.id)) {
+      throw new Error("Each new account must have a unique ID")
+    }
+    ids.add(draft.id)
+    if (draft.id !== endpoints.fromAccountId && draft.id !== endpoints.toAccountId) {
+      throw new Error("A new account must be selected in this transfer")
+    }
+    if (typeof draft.name !== "string" || !draft.name.trim() || draft.name.trim().length > 30) {
+      throw new Error("Enter an account name of 1 to 30 characters")
+    }
+    if (typeof draft.currency !== "string" || !/^[A-Z]{3}$/.test(draft.currency)) {
+      throw new Error("Select a valid account currency")
+    }
+    if (draft.note !== undefined && typeof draft.note !== "string") {
+      throw new Error("Enter a valid account note")
+    }
+    if (await db.accounts.get(draft.id)) {
+      throw new Error("This account already exists. Select it from your accounts instead.")
+    }
+    if (typeof draft.categoryId !== "string" || !draft.categoryId) {
+      throw new Error("Select an account category")
+    }
+    const category = await db.categories.get(draft.categoryId)
+    if (!category || category.isArchived) throw new Error("Account category not found")
+    const siblings = await db.accounts.where("categoryId").equals(draft.categoryId).toArray()
+    const sortOrder = siblings.length ? Math.max(...siblings.map((account) => account.sortOrder)) + 1 : 0
+    await db.accounts.add({
+      id: draft.id,
+      name: draft.name.trim(),
+      categoryId: draft.categoryId,
+      currency: draft.currency,
+      note: draft.note ?? "",
+      openingBalance: 0,
+      balance: 0,
+      isArchived: false,
+      sortOrder,
+      createdAt: now,
+      updatedAt: now,
+    })
+    await db.categories.update(draft.categoryId, { usageCount: (category.usageCount ?? 0) + 1 })
+  }
+  return [...ids]
+}
 
 function determineKindAndEffects(
   fromType: "asset" | "liability",
