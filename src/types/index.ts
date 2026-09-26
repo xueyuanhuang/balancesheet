@@ -71,7 +71,7 @@ export type ActivityKind = OperationKind | "opening_balance"
 
 export type ActivityItem =
   | { type: "operation"; id: string; occurredAt: number; data: OperationWithEntries }
-  | { type: "opening_balance"; id: string; occurredAt: number; account: Account }
+  | { type: "opening_balance"; id: string; occurredAt: number; account: Account; transferOperationId?: string }
 
 export interface ActivityFilters {
   accountId?: string

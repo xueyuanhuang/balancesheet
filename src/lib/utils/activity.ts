@@ -16,12 +16,16 @@ export function buildActivity(
     })),
     ...accounts
       .filter((account) => account.openingBalance !== 0)
-      .map((account): ActivityItem => ({
-        type: "opening_balance",
-        id: `opening_balance:${account.id}`,
-        occurredAt: account.createdAt,
-        account,
-      })),
+      .map((account): ActivityItem => {
+        const transfer = findAccountCreationTransfer(account.id, operations)
+        return {
+          type: "opening_balance",
+          id: `opening_balance:${account.id}`,
+          occurredAt: account.createdAt,
+          account,
+          ...(transfer ? { transferOperationId: transfer.operation.id } : {}),
+        }
+      }),
   ]
 
   return items.filter((item) => {
@@ -46,4 +50,18 @@ export function buildActivity(
     const createdB = b.type === "operation" ? b.data.operation.createdAt : b.account.createdAt
     return createdB - createdA || a.id.localeCompare(b.id)
   })
+}
+
+/** Resolve only a recorded relationship, never infer a source from amount/date/name. */
+export function findAccountCreationTransfer(accountId: string, operations: OperationWithEntries[]): OperationWithEntries | undefined {
+  const linked = operations.filter(({ operation, entries }) => {
+    if (!operation.createdAccountIds?.includes(accountId)) return false
+    if (operation.kind === "normal" || operation.kind === "adjustment") return false
+    const source = entries.find((entry) => entry.role === "source")
+    const target = entries.find((entry) => entry.role === "target")
+    return entries.length === 2 && source && target && source.accountId !== target.accountId &&
+      entries.every((entry) => entry.operationId === operation.id && Number.isSafeInteger(entry.amount) && entry.amount > 0) &&
+      (source.accountId === accountId || target.accountId === accountId)
+  })
+  return linked.length === 1 ? linked[0] : undefined
 }

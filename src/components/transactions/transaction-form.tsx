@@ -46,23 +46,18 @@ function getAmountError(label: string, cents: number, status: AmountInputStatus 
 interface TransactionFormProps {
   mode: "create" | "edit"
   initialData?: OperationWithEntries
-  openingAccount?: Account
 }
 
-export function TransactionForm({ mode, initialData, openingAccount: initialOpeningAccount }: TransactionFormProps) {
+export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   const router = useRouter()
-  // Keep the expected balance from when editing began so another tab cannot
-  // silently change the record this form is about to replace.
-  const [openingAccount] = useState(initialOpeningAccount)
 
   // Derive initial state from OperationWithEntries
   const initKind: FormKind = useMemo(() => {
-    if (openingAccount) return "transfer"
     if (!initialData) return "normal"
     const k = initialData.operation.kind
     if (k === "normal" || k === "adjustment") return "normal"
     return "transfer" // transfer, fx_transfer, liability_repayment, liability_drawdown
-  }, [initialData, openingAccount])
+  }, [initialData])
 
   const sourceEntry = initialData?.entries.find((e) => e.role === "source")
   const targetEntry = initialData?.entries.find((e) => e.role === "target")
@@ -77,9 +72,9 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
 
   // Transfer state
   const [fromAccountId, setFromAccountId] = useState(sourceEntry?.accountId ?? "")
-  const [toAccountId, setToAccountId] = useState(targetEntry?.accountId ?? openingAccount?.id ?? "")
-  const [fromAmount, setFromAmount] = useState(sourceEntry?.amount ?? openingAccount?.openingBalance ?? 0)
-  const [toAmount, setToAmount] = useState(targetEntry?.amount ?? openingAccount?.openingBalance ?? 0)
+  const [toAccountId, setToAccountId] = useState(targetEntry?.accountId ?? "")
+  const [fromAmount, setFromAmount] = useState(sourceEntry?.amount ?? 0)
+  const [toAmount, setToAmount] = useState(targetEntry?.amount ?? 0)
   const [fromAmountStatus, setFromAmountStatus] = useState<AmountInputStatus | null>(null)
   const [toAmountStatus, setToAmountStatus] = useState<AmountInputStatus | null>(null)
   const [hasFee, setHasFee] = useState(() => {
@@ -89,9 +84,9 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
   })
 
   // Common
-  const [description, setDescription] = useState(initialData?.operation.description ?? openingAccount?.note ?? "")
+  const [description, setDescription] = useState(initialData?.operation.description ?? "")
   const [occurredAt, setOccurredAt] = useState(() => {
-    const d = new Date(initialData?.operation.occurredAt ?? openingAccount?.createdAt ?? Date.now())
+    const d = new Date(initialData?.operation.occurredAt ?? Date.now())
     // Format as local datetime string for datetime-local input
     const pad = (n: number) => n.toString().padStart(2, "0")
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
@@ -119,10 +114,8 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
   // Look up selected accounts for currency info
   const savedAccounts = useAccounts()
   const singleAccount = useAccount(kind !== "transfer" ? accountId || undefined : undefined)
-  const savedFromAccount = useAccount(kind === "transfer" ? fromAccountId || undefined : undefined)
-  const savedToAccount = useAccount(kind === "transfer" ? toAccountId || undefined : undefined)
-  const fromAccount = pendingAccounts.find((account) => account.id === fromAccountId) ?? savedFromAccount
-  const toAccount = pendingAccounts.find((account) => account.id === toAccountId) ?? savedToAccount
+  const fromAccount = pendingAccounts.find((account) => account.id === fromAccountId) ?? savedAccounts.find((account) => account.id === fromAccountId)
+  const toAccount = pendingAccounts.find((account) => account.id === toAccountId) ?? savedAccounts.find((account) => account.id === toAccountId)
 
   // Check if single account is a liability type
   const singleCategory = useCategory(singleAccount?.categoryId)
@@ -145,15 +138,7 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
   const isCrossCurrency = kind === "transfer" && fromAccountId && toAccountId && fromCurrency !== toCurrency
   const showDualAmounts = isCrossCurrency || (kind === "transfer" && hasFee)
 
-  const selectFromAccount = (id: string) => {
-    const selected = pendingAccounts.find((account) => account.id === id) ?? savedAccounts.find((account) => account.id === id)
-    if (openingAccount && selected && selected.currency !== (fromAccount?.currency ?? openingAccount.currency)) {
-      // The old record tells us only the received amount, never an FX source amount.
-      setFromAmount(0)
-      setFromAmountStatus(null)
-    }
-    setFromAccountId(id)
-  }
+  const selectFromAccount = setFromAccountId
   const selectToAccount = (id: string) => {
     const selected = pendingAccounts.find((account) => account.id === id) ?? savedAccounts.find((account) => account.id === id)
     if (selected && selected.currency !== toCurrency) {
@@ -211,7 +196,7 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
 
     try {
       if (kind === "transfer") {
-        if (!fromAccountId || !toAccountId) {
+        if (!fromAccountId || !toAccountId || !fromAccount || !toAccount) {
           toast.error("Select the source and destination accounts")
           setLoading(false)
           return
@@ -240,15 +225,7 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
           .filter((account) => account.id === normalized.fromAccountId || account.id === normalized.toAccountId)
           .map(({ id, name, categoryId, currency, note }) => ({ id, name, categoryId, currency, note }))
 
-        if (openingAccount) {
-          await operationService.convertOpeningToTransfer(openingAccount.id, {
-            ...normalized,
-            description,
-            occurredAt: timestamp,
-            expectedOpeningBalance: openingAccount.openingBalance,
-            newAccounts,
-          })
-        } else if (mode === "create") {
+        if (mode === "create") {
           await operationService.createTransfer({
             ...normalized,
             description,
@@ -319,7 +296,7 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
     <Dialog open={creatingAccount} onOpenChange={(open) => { if (!savingAccount) setCreatingAccount(open) }}>
     <form onSubmit={handleSubmit} className="p-4 space-y-6">
       {/* Kind selector - only for create mode */}
-      {mode === "create" && !openingAccount && (
+      {mode === "create" && (
         <Tabs value={kind} onValueChange={(v) => setKind(v as FormKind)}>
           <TabsList className="w-full">
             <TabsTrigger value="normal" className="flex-1">General</TabsTrigger>
@@ -369,11 +346,6 @@ export function TransactionForm({ mode, initialData, openingAccount: initialOpen
                 : `${account.name} was created for this transfer and will be removed when you save.`}
             </p>
           ))}
-          {openingAccount && toAccountId !== openingAccount.id && (
-            <p className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              Saving will replace the opening balance with this transfer and remove {openingAccount.name}.
-            </p>
-          )}
 
           {/* Amount section */}
           {showDualAmounts ? (

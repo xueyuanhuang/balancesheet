@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { account, deepFreeze, entry, operation, sourceURL } from "./helpers.mjs"
 
-const { buildActivity } = await import(await sourceURL("src/lib/utils/activity.ts"))
+const { buildActivity, findAccountCreationTransfer } = await import(await sourceURL("src/lib/utils/activity.ts"))
 const { getOpeningBalanceType } = await import(await sourceURL("src/lib/utils/opening-balance.ts"))
 
 test("existing nonzero account openings appear at creation time; zero balances stay hidden", () => {
@@ -87,3 +87,42 @@ for (const [category, amount, expected] of [
     assert.equal(getOpeningBalanceType(amount, category), expected)
   })
 }
+
+function savedTransfer(id, createdAccountIds) {
+  return {
+    operation: operation({ id, kind: "fx_transfer", description: "Original transfer", createdAccountIds }),
+    entries: [
+      entry({ id: `${id}-from`, operationId: id, accountId: "bank", role: "source", amount: 230000 }),
+      entry({ id: `${id}-to`, operationId: id, accountId: "others", role: "target", effect: "increase", amount: 32141 }),
+    ],
+  }
+}
+
+test("an account opening linked to a saved transfer opens that exact transfer with its original entries", () => {
+  const original = savedTransfer("saved-transfer", ["others"])
+  const later = savedTransfer("later-transfer", undefined)
+  const opening = account({ id: "others", openingBalance: 32141, currency: "USD" })
+  deepFreeze(original)
+  const resolved = findAccountCreationTransfer("others", [later, original])
+  assert.strictEqual(resolved, original)
+  assert.equal(resolved.entries.find((entry) => entry.role === "source").accountId, "bank")
+  assert.equal(resolved.entries.find((entry) => entry.role === "target").amount, 32141)
+  const row = buildActivity([later, original], [opening]).find((item) => item.type === "opening_balance")
+  assert.equal(row.transferOperationId, "saved-transfer")
+})
+
+test("an opening without a saved transfer never acquires a guessed source from similar history", () => {
+  const legacy = savedTransfer("legacy-transfer", undefined)
+  assert.equal(findAccountCreationTransfer("others", [legacy]), undefined)
+  const row = buildActivity([], [account({ id: "others", openingBalance: 32141 })])[0]
+  assert.equal(row.transferOperationId, undefined)
+})
+
+test("incomplete, conflicting, or unrelated ownership cannot resolve a transfer", () => {
+  const first = savedTransfer("first", ["others"])
+  const second = savedTransfer("second", ["others"])
+  assert.equal(findAccountCreationTransfer("others", [first, second]), undefined)
+  assert.equal(findAccountCreationTransfer("others", [{ ...first, entries: [first.entries[1]] }]), undefined)
+  assert.equal(findAccountCreationTransfer("unrelated", [first]), undefined)
+  assert.equal(findAccountCreationTransfer("others", [{ ...first, entries: first.entries.map((entry) => ({ ...entry, operationId: "wrong" })) }]), undefined)
+})

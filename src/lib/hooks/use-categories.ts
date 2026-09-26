@@ -20,9 +20,11 @@ export function useCategories(type?: "asset" | "liability") {
 }
 
 export function useCategory(id: string | undefined) {
-  return useLiveQuery(
+  const category = useLiveQuery(
     () => (id ? db.categories.get(id) : undefined),
     [id],
     undefined as Category | undefined
   )
+
+  return category?.id === id ? category : undefined
 }

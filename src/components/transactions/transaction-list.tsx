@@ -47,7 +47,7 @@ export function TransactionList({ items, filterAccountId }: TransactionListProps
           </div>
           <div>
             {items.map((item) => item.type === "opening_balance" ? (
-              <OpeningBalanceItem key={item.id} account={item.account} />
+              <OpeningBalanceItem key={item.id} account={item.account} transferOperationId={item.transferOperationId} />
             ) : (
               <OperationItem
                 key={item.id}

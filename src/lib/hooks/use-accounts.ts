@@ -13,11 +13,14 @@ export function useAccounts() {
 }
 
 export function useAccount(id: string | undefined) {
-  return useLiveQuery(
+  const account = useLiveQuery(
     () => (id ? db.accounts.get(id) : undefined),
     [id],
     undefined as Account | undefined
   )
+
+  // Live queries retain their previous result while a new ID is loading.
+  return account?.id === id ? account : undefined
 }
 
 export function useAccountsByCategory(categoryId: string | undefined) {

@@ -8,14 +8,16 @@ import { useCategory } from "@/lib/hooks/use-categories"
 import { getOpeningBalanceType } from "@/lib/utils/opening-balance"
 import type { Account } from "@/types"
 
-export function OpeningBalanceItem({ account }: { account: Account }) {
+export function OpeningBalanceItem({ account, transferOperationId }: { account: Account; transferOperationId?: string }) {
   const category = useCategory(account.categoryId)
   const type = category ? getOpeningBalanceType(account.openingBalance, category.type) : undefined
   const displayAmount = type === "expense" ? -Math.abs(account.openingBalance) : Math.abs(account.openingBalance)
 
   return (
     <Link
-      href={`/transactions/edit?openingAccountId=${account.id}`}
+      href={transferOperationId
+        ? `/transactions/edit?id=${encodeURIComponent(transferOperationId)}`
+        : `/transactions/edit?openingAccountId=${encodeURIComponent(account.id)}`}
       aria-label={`Edit opening balance: ${account.name}, ${formatAmount(account.openingBalance, account.currency)}, ${formatDateTime(account.createdAt)}`}
       className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >

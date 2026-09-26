@@ -11,6 +11,7 @@ import { useLiveQuery } from "dexie-react-hooks"
 import { db } from "@/lib/db"
 import { useOperation } from "@/lib/hooks/use-operations"
 import { operationService } from "@/lib/services/operation-service"
+import { findAccountCreationTransfer } from "@/lib/utils/activity"
 import { toast } from "sonner"
 
 export default function EditTransactionPage() {
@@ -18,15 +19,25 @@ export default function EditTransactionPage() {
   const id = searchParams.get("id") ?? ""
   const openingAccountId = searchParams.get("openingAccountId") ?? ""
   const router = useRouter()
-  const operationData = useOperation(id || undefined)
-  const openingRecord = useLiveQuery(async () => {
-    if (!openingAccountId) return null
-    const account = await db.accounts.get(openingAccountId)
-    if (!account) return null
-    const category = await db.categories.get(account.categoryId)
-    const count = await db.entries.where("accountId").equals(openingAccountId).count()
-    return { account, canConvert: count === 0 && account.openingBalance > 0 && category?.type === "asset" }
+  const savedOperation = useOperation(id || undefined)
+  const loadedOpening = useLiveQuery(async () => {
+    if (!openingAccountId) return undefined
+    return db.transaction("r", [db.accounts, db.operations, db.entries], async () => {
+      const account = await db.accounts.get(openingAccountId)
+      if (!account) return { accountId: openingAccountId, account: null, transfer: undefined }
+      const linkedOperations = await db.operations.filter((operation) =>
+        operation.createdAccountIds?.includes(openingAccountId) ?? false).toArray()
+      const operations = await Promise.all(linkedOperations.map(async (operation) => ({
+        operation,
+        entries: await db.entries.where("operationId").equals(operation.id).toArray(),
+      })))
+      return { accountId: openingAccountId, account, transfer: findAccountCreationTransfer(openingAccountId, operations) }
+    })
   }, [openingAccountId])
+  const openingRecord = loadedOpening?.accountId === openingAccountId ? loadedOpening : undefined
+  const operationData = id
+    ? savedOperation?.operation.id === id ? savedOperation : undefined
+    : openingRecord?.transfer
 
   const handleDelete = async () => {
     if (!operationData) return
@@ -39,12 +50,12 @@ export default function EditTransactionPage() {
     }
   }
 
-  if (openingAccountId) {
+  if (openingAccountId && !id && !operationData) {
     return (
       <div>
-        <PageHeader title="Edit record" showBack />
-        {openingRecord ? (
-          <OpeningRecordEditor key={openingAccountId} account={openingRecord.account} canConvert={openingRecord.canConvert} />
+        <PageHeader title="Opening balance" showBack />
+        {openingRecord?.account ? (
+          <OpeningRecordEditor key={openingAccountId} account={openingRecord.account} />
         ) : (
           <div className="p-4 text-center text-muted-foreground">
             {openingRecord === undefined ? "Loading..." : "Record not found"}
@@ -58,7 +69,7 @@ export default function EditTransactionPage() {
     return (
       <div>
         <PageHeader title="Edit transaction" showBack />
-        <div className="p-4 text-center text-muted-foreground">Loading...</div>
+        <div className="p-4 text-center text-muted-foreground">{savedOperation === null ? "Transaction not found" : "Loading..."}</div>
       </div>
     )
   }
@@ -66,7 +77,7 @@ export default function EditTransactionPage() {
   return (
     <div>
       <PageHeader
-        title="Edit transaction"
+        title={operationData.entries.length === 2 ? "Edit transfer" : "Edit transaction"}
         showBack
         rightAction={
           <Button variant="ghost" size="icon" onClick={handleDelete}>
@@ -75,7 +86,7 @@ export default function EditTransactionPage() {
         }
       />
       <TransactionForm
-        key={id}
+        key={operationData.operation.id}
         mode="edit"
         initialData={operationData}
       />

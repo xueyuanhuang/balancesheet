@@ -78,15 +78,19 @@ export function useOperations(filters?: OperationFilters) {
 }
 
 export function useOperation(id: string | undefined) {
-  return useLiveQuery(
-    async (): Promise<OperationWithEntries | undefined> => {
+  const result = useLiveQuery(
+    async (): Promise<{ id: string; data: OperationWithEntries | null } | undefined> => {
       if (!id) return undefined
-      const operation = await db.operations.get(id)
-      if (!operation) return undefined
-      const entries = await db.entries.where("operationId").equals(id).toArray()
-      return { operation, entries }
+      return db.transaction("r", [db.operations, db.entries], async () => {
+        const operation = await db.operations.get(id)
+        if (!operation) return { id, data: null }
+        const entries = await db.entries.where("operationId").equals(id).toArray()
+        return { id, data: { operation, entries } }
+      })
     },
-    [id],
-    undefined as OperationWithEntries | undefined
+    [id]
   )
+
+  // Do not initialize an editor from the previous record during navigation.
+  return result?.id === id ? result?.data : undefined
 }

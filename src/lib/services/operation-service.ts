@@ -185,46 +185,6 @@ export const operationService = {
     return opId
   },
 
-  // Old inline creation could leave only an opening balance with no transfer.
-  // The correction screen supplies the source explicitly; there is no reliable
-  // historical source to infer from the account alone.
-  async convertOpeningToTransfer(
-    openingAccountId: string,
-    data: TransferData & { expectedOpeningBalance: number }
-  ): Promise<string> {
-    return db.transaction("rw", [db.operations, db.entries, db.accounts, db.categories], async () => {
-      const account = await db.accounts.get(openingAccountId)
-      if (!account) throw new Error("The opening account no longer exists")
-      if (account.openingBalance !== data.expectedOpeningBalance) {
-        throw new Error("The opening balance changed. Reopen the record before correcting it.")
-      }
-      const category = await db.categories.get(account.categoryId)
-      if (account.openingBalance <= 0 || category?.type !== "asset") {
-        throw new Error("Only a positive asset opening balance can be corrected as an incoming transfer")
-      }
-      if (await db.entries.where("accountId").equals(openingAccountId).count() > 0) {
-        throw new Error("This account already has transactions. Edit its existing transfer instead.")
-      }
-      const normalized = normalizeTransferAmounts(data)
-      if (normalized.fromAccountId === openingAccountId) {
-        throw new Error("Choose a different source account for this incoming transfer")
-      }
-      // Clear only after all stale-record checks. Any subsequent failure rolls
-      // back this change together with the transfer and newly created accounts.
-      await db.accounts.update(openingAccountId, { openingBalance: 0, balance: 0, updatedAt: Date.now() })
-      const operationId = await operationService.createTransfer(data)
-      if (normalized.toAccountId === openingAccountId) {
-        const operation = await db.operations.get(operationId)
-        await db.operations.update(operationId, {
-          createdAccountIds: [...new Set([...(operation?.createdAccountIds ?? []), openingAccountId])],
-        })
-      } else {
-        await db.accounts.delete(openingAccountId)
-      }
-      return operationId
-    })
-  },
-
   // ─── Update ───
 
   async updateOperation(
