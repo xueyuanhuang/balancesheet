@@ -15,8 +15,8 @@ export function OpeningBalanceItem({ account }: { account: Account }) {
 
   return (
     <Link
-      href={`/accounts/detail?id=${account.id}`}
-      aria-label={`Account opened: ${account.name}, opening balance ${formatAmount(account.openingBalance, account.currency)}, ${formatDateTime(account.createdAt)}`}
+      href={`/accounts/edit?id=${account.id}`}
+      aria-label={`Edit opening balance: ${account.name}, ${formatAmount(account.openingBalance, account.currency)}, ${formatDateTime(account.createdAt)}`}
       className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted text-muted-foreground">
@@ -25,7 +25,7 @@ export function OpeningBalanceItem({ account }: { account: Account }) {
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium truncate">Account opened</div>
         <div className="flex items-center min-w-0 text-xs text-muted-foreground mt-0.5">
-          <span className="truncate underline underline-offset-2" title={account.name}>{account.name}</span>
+          <span className="truncate" title={account.name}>{account.name}</span>
           <span className="ml-1 truncate" title={formatDateTime(account.createdAt)}>
             · {formatDateTime(account.createdAt)}
           </span>

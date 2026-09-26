@@ -2,7 +2,7 @@
 
 import { Fragment } from "react"
 import Link from "next/link"
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Settings2, Pencil } from "lucide-react"
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, RefreshCw, Landmark, Settings2 } from "lucide-react"
 import { AmountDisplay } from "@/components/shared/amount-display"
 import { formatDateTime, formatAmount } from "@/lib/utils/format"
 import { useAccount } from "@/lib/hooks/use-accounts"
@@ -120,23 +120,16 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
   })()
 
   return (
-    <div className="relative isolate flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg">
+    <Link
+      href={`/transactions/edit?id=${operation.id}`}
+      aria-label={editLabel}
+      className="flex items-center gap-3 py-3 px-4 hover:bg-accent/50 active:bg-accent rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <div className={cn("shrink-0 h-9 w-9 rounded-full flex items-center justify-center bg-muted", iconColor)}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="flex-1 min-w-0">
-        {/* The edit link covers the row; account links sit above it. */}
-        <Link
-          href={`/transactions/edit?id=${operation.id}`}
-          aria-label={editLabel}
-          className="flex min-w-0 min-h-0 items-center gap-2 text-sm font-medium after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
-        >
-          <span className="truncate">{primaryText}</span>
-          <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground">
-            <Pencil className="size-3" aria-hidden="true" />
-            Edit
-          </span>
-        </Link>
+        <div className="text-sm font-medium truncate">{primaryText}</div>
         <div className="flex items-center min-w-0 text-xs text-muted-foreground mt-0.5">
           <span className={cn(
             "items-center gap-1 min-w-0 max-w-full shrink-0",
@@ -146,14 +139,12 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
               <Fragment key={index}>
                 {index > 0 && <span className="shrink-0" aria-hidden="true">→</span>}
                 {account ? (
-                  <Link
-                    href={`/accounts/detail?id=${account.id}`}
-                    aria-label={`View account: ${account.name}`}
+                  <span
                     title={account.name}
-                    className="relative z-10 min-w-0 min-h-0 truncate rounded-sm underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="min-w-0 truncate"
                   >
                     {account.name}
-                  </Link>
+                  </span>
                 ) : (
                   <span className="truncate">Unknown account</span>
                 )}
@@ -204,6 +195,6 @@ export function OperationItem({ data, runningBalances, filterAccountId }: Operat
           </span>
         )}
       </div>
-    </div>
+    </Link>
   )
 }
