@@ -22,6 +22,7 @@ import { toast } from "sonner"
 import type { Account, OperationWithEntries, EntryEffect } from "@/types"
 
 type FormKind = "normal" | "transfer"
+type TransferAccountSide = "from" | "to"
 
 function getAmountError(label: string, cents: number, status: AmountInputStatus | null): string | null {
   if (!status) {
@@ -92,7 +93,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   })
   const [loading, setLoading] = useState(false)
-  const [creatingAccount, setCreatingAccount] = useState(false)
+  const [creatingAccount, setCreatingAccount] = useState<TransferAccountSide | null>(null)
   const [savingAccount, setSavingAccount] = useState(false)
   const [pendingAccounts, setPendingAccounts] = useState<Account[]>([])
 
@@ -293,7 +294,7 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
   }
 
   return (
-    <Dialog open={creatingAccount} onOpenChange={(open) => { if (!savingAccount) setCreatingAccount(open) }}>
+    <Dialog open={creatingAccount !== null} onOpenChange={(open) => { if (!open && !savingAccount) setCreatingAccount(null) }}>
     <form onSubmit={handleSubmit} className="p-4 space-y-6">
       {/* Kind selector - only for create mode */}
       {mode === "create" && (
@@ -308,7 +309,17 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
       {kind === "transfer" ? (
         <>
           <div className="space-y-2">
-            <label className="text-sm font-medium">From account</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium">From account</label>
+              <DialogTrigger
+                render={<Button type="button" variant="ghost" size="sm" disabled={loading} />}
+                aria-label="New source account"
+                onClick={() => setCreatingAccount("from")}
+              >
+                <Plus className="size-4" />
+                New account
+              </DialogTrigger>
+            </div>
             <AccountPicker
               value={fromAccountId || null}
               onChange={selectFromAccount}
@@ -317,11 +328,18 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               sortMode="recentTransferSource"
               pendingAccounts={pendingAccounts}
             />
+            {pendingAccounts.some((account) => account.id === fromAccountId) && (
+              <p className="text-xs text-muted-foreground">This account will be created when you save this transfer.</p>
+            )}
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <label className="text-sm font-medium">To account</label>
-              <DialogTrigger render={<Button type="button" variant="ghost" size="sm" disabled={loading} />}>
+              <DialogTrigger
+                render={<Button type="button" variant="ghost" size="sm" disabled={loading} />}
+                aria-label="New destination account"
+                onClick={() => setCreatingAccount("to")}
+              >
                 <Plus className="size-4" />
                 New account
               </DialogTrigger>
@@ -334,8 +352,8 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
               sortMode="recentTransferTarget"
               pendingAccounts={pendingAccounts}
             />
-            {pendingAccounts.some((account) => account.id === toAccountId || account.id === fromAccountId) && (
-              <p className="text-xs text-muted-foreground">The new account will be created when you save this transfer.</p>
+            {pendingAccounts.some((account) => account.id === toAccountId) && (
+              <p className="text-xs text-muted-foreground">This account will be created when you save this transfer.</p>
             )}
           </div>
 
@@ -343,7 +361,9 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
             <p key={account.id} className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
               {hasOtherTransactions
                 ? `${account.name} has other transactions and will be kept.`
-                : `${account.name} was created for this transfer and will be removed when you save.`}
+                : account.openingBalance !== 0
+                  ? `${account.name} has an opening balance and will be kept.`
+                  : `${account.name} was created for this transfer and will be removed when you save.`}
             </p>
           ))}
 
@@ -500,29 +520,37 @@ export function TransactionForm({ mode, initialData }: TransactionFormProps) {
     </form>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md" showCloseButton={!savingAccount}>
         <DialogHeader>
-          <DialogTitle>New destination account</DialogTitle>
-          <DialogDescription>Enter the account details. The account and transfer will be saved together.</DialogDescription>
+          <DialogTitle>{creatingAccount === "from" ? "New source account" : "New destination account"}</DialogTitle>
+          <DialogDescription>
+            Enter the account details. The account and transfer will be saved together.
+            {creatingAccount === "from" && " For borrowing, choose a liability category for the lender."}
+          </DialogDescription>
         </DialogHeader>
         {creatingAccount && (
           <div className="-mx-4">
             <AccountForm
               mode="create"
-              defaultCurrency={fromCurrency}
+              defaultCurrency={creatingAccount === "from" ? (toAccount?.currency ?? fromCurrency) : (fromAccount?.currency ?? toCurrency)}
               onPrepared={(draft) => {
                 const id = generateId()
                 const now = Date.now()
-                setPendingAccounts((accounts) => [...accounts.filter((account) => account.id === fromAccountId), {
+                const otherAccountId = creatingAccount === "from" ? toAccountId : fromAccountId
+                setPendingAccounts((accounts) => [...accounts.filter((account) => account.id === otherAccountId), {
                   ...draft, id, note: draft.note ?? "", openingBalance: 0, balance: 0,
                   isArchived: false, sortOrder: 0, createdAt: now, updatedAt: now,
                 }])
-                if (draft.currency !== toCurrency) {
-                  setToAmount(0)
-                  setToAmountStatus(null)
+                if (creatingAccount === "from") {
+                  setFromAccountId(id)
+                } else {
+                  if (draft.currency !== toCurrency) {
+                    setToAmount(0)
+                    setToAmountStatus(null)
+                  }
+                  setToAccountId(id)
                 }
-                setToAccountId(id)
-                setCreatingAccount(false)
+                setCreatingAccount(null)
               }}
-              onCancel={() => setCreatingAccount(false)}
+              onCancel={() => setCreatingAccount(null)}
               onSavingChange={setSavingAccount}
             />
           </div>

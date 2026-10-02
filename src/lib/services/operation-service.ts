@@ -327,11 +327,13 @@ export const operationService = {
           await db.accounts.delete(accountId)
         }
         // Replacing an account created for this transfer also undoes its
-        // creation. Reused accounts survive and relinquish ownership so a
+        // creation. Reused accounts or accounts with an opening balance survive
+        // and relinquish ownership so a
         // later edit cannot remove them after their other activity is deleted.
         for (const accountId of ownedAccountIds) {
           if (accountId === fromAccountId || accountId === toAccountId) continue
-          if (await db.entries.where("accountId").equals(accountId).count() === 0) {
+          const account = await db.accounts.get(accountId)
+          if (account?.openingBalance === 0 && await db.entries.where("accountId").equals(accountId).count() === 0) {
             await db.accounts.delete(accountId)
           }
         }
