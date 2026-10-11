@@ -77,22 +77,21 @@ export function AmountInput({
   const expressionStatus = enableExpression ? evaluateAmountExpression(display, allowNegative) : null
   const preview = expressionStatus?.hasResult ? `= ${formatAmount(expressionStatus.cents, currency)}` : ""
 
-  const updateExpression = useCallback((text: string) => {
-    if (!isAllowedExpressionInput(text)) return
-    const status = evaluateAmountExpression(text, allowNegative)
-    const cents = status.hasResult ? status.cents : 0
-    setDraft({ value: cents, display: text })
-    onStatusChange?.(status)
-    onChange(cents)
-  }, [allowNegative, onChange, onStatusChange])
-
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const el = e.target
       const cursorPos = el.selectionStart ?? 0
 
       if (enableExpression) {
-        updateExpression(el.value)
+        if (!isAllowedExpressionInput(el.value)) {
+          return
+        }
+
+        const status = evaluateAmountExpression(el.value, allowNegative)
+        const cents = status.hasResult ? status.cents : 0
+        setDraft({ value: cents, display: el.value })
+        onStatusChange?.(status)
+        onChange(cents)
         return
       }
 
@@ -128,26 +127,8 @@ export function AmountInput({
         inputRef.current.setSelectionRange(newPos, newPos)
       })
     },
-    [enableExpression, allowNegative, onChange, updateExpression]
+    [enableExpression, allowNegative, onChange, onStatusChange]
   )
-
-  const insertOperator = (operator: string) => {
-    const input = inputRef.current
-    if (!input) return
-    const start = input.selectionStart ?? display.length
-    const end = input.selectionEnd ?? start
-    updateExpression(display.slice(0, start) + operator + display.slice(end))
-    input.focus({ preventScroll: true })
-    requestAnimationFrame(() => input.setSelectionRange(start + operator.length, start + operator.length))
-  }
-
-  const toggleSign = () => {
-    const next = display.startsWith("-") ? display.slice(1) : `-${display}`
-    const cents = parseToCents(stripCommas(next))
-    setDraft({ value: cents, display: next })
-    onChange(cents)
-    inputRef.current?.focus({ preventScroll: true })
-  }
 
   const handleBlur = useCallback(() => {
     if (enableExpression) {
@@ -168,13 +149,7 @@ export function AmountInput({
   }, [display, enableExpression, allowNegative, onCommit, onChange])
 
   return (
-    <div
-      className={cn(enableExpression && "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2")}
-      onBlur={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget)) return
-        handleBlur()
-      }}
-    >
+    <div className={cn(enableExpression && "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2")}>
       <div className="relative min-w-0">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
           {symbol}
@@ -186,6 +161,7 @@ export function AmountInput({
           enterKeyHint="done"
           value={display}
           onChange={handleChange}
+          onBlur={handleBlur}
           placeholder={placeholder}
           aria-label={ariaLabel}
           className={cn(isWide ? "pl-11" : "pl-7", className)}
@@ -201,40 +177,6 @@ export function AmountInput({
           )}
         >
           {preview}
-        </div>
-      )}
-      {(enableExpression || allowNegative) && (
-        <div
-          role="group"
-          aria-label={`${ariaLabel} shortcuts`}
-          className={cn("flex gap-1", enableExpression ? "col-span-2" : "mt-2")}
-        >
-          {enableExpression ? [
-            ["+", "Add"], ["−", "Subtract or enter a negative amount"],
-            ["×", "Multiply"], ["÷", "Divide"],
-            ["(", "Open parenthesis"], [")", "Close parenthesis"],
-          ].map(([operator, label]) => (
-            <button
-              key={operator}
-              type="button"
-              aria-label={`${ariaLabel}: ${label}`}
-              className="h-11 min-w-0 flex-1 rounded-md border border-input bg-muted/50 text-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => insertOperator(operator)}
-            >
-              {operator}
-            </button>
-          )) : (
-            <button
-              type="button"
-              aria-label={`${ariaLabel}: Change sign`}
-              className="h-11 w-14 rounded-md border border-input bg-muted/50 text-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={toggleSign}
-            >
-              ±
-            </button>
-          )}
         </div>
       )}
     </div>
