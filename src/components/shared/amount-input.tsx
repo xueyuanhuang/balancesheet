@@ -1,6 +1,7 @@
 "use client"
 
-import { useRef, useState, useCallback } from "react"
+import { useRef, useState, useCallback, useId } from "react"
+import { Calculator } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { formatAmount, parseToCents } from "@/lib/utils/format"
 import { getCurrencySymbol } from "@/lib/utils/constants"
@@ -65,6 +66,8 @@ export function AmountInput({
   onStatusChange,
 }: AmountInputProps) {
   const [draft, setDraft] = useState(() => ({ value, display: formatInitial(value) }))
+  const [showOperators, setShowOperators] = useState(false)
+  const operatorsId = useId()
   // Preserve the expression while typing, but follow external changes such
   // as a direction switch or swapping the two transfer amounts.
   if (draft.value !== value) {
@@ -77,21 +80,22 @@ export function AmountInput({
   const expressionStatus = enableExpression ? evaluateAmountExpression(display, allowNegative) : null
   const preview = expressionStatus?.hasResult ? `= ${formatAmount(expressionStatus.cents, currency)}` : ""
 
+  const updateExpression = useCallback((text: string) => {
+    if (!isAllowedExpressionInput(text)) return
+    const status = evaluateAmountExpression(text, allowNegative)
+    const cents = status.hasResult ? status.cents : 0
+    setDraft({ value: cents, display: text })
+    onStatusChange?.(status)
+    onChange(cents)
+  }, [allowNegative, onChange, onStatusChange])
+
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const el = e.target
       const cursorPos = el.selectionStart ?? 0
 
       if (enableExpression) {
-        if (!isAllowedExpressionInput(el.value)) {
-          return
-        }
-
-        const status = evaluateAmountExpression(el.value, allowNegative)
-        const cents = status.hasResult ? status.cents : 0
-        setDraft({ value: cents, display: el.value })
-        onStatusChange?.(status)
-        onChange(cents)
+        updateExpression(el.value)
         return
       }
 
@@ -127,8 +131,19 @@ export function AmountInput({
         inputRef.current.setSelectionRange(newPos, newPos)
       })
     },
-    [enableExpression, allowNegative, onChange, onStatusChange]
+    [enableExpression, allowNegative, onChange, updateExpression]
   )
+
+  const insertOperator = (operator: string) => {
+    const input = inputRef.current
+    if (!input) return
+    const start = input.selectionStart ?? display.length
+    const end = input.selectionEnd ?? start
+    updateExpression(display.slice(0, start) + operator + display.slice(end))
+    // Focus synchronously with the tap so iOS keeps its decimal keyboard open.
+    input.focus({ preventScroll: true })
+    requestAnimationFrame(() => input.setSelectionRange(start + operator.length, start + operator.length))
+  }
 
   const handleBlur = useCallback(() => {
     if (enableExpression) {
@@ -149,7 +164,15 @@ export function AmountInput({
   }, [display, enableExpression, allowNegative, onCommit, onChange])
 
   return (
-    <div className={cn(enableExpression && "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2")}>
+    <div
+      className={cn(enableExpression && "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2")}
+      onBlur={(event) => {
+        // Moving to a calculation button must not commit a negative expression
+        // (and reverse the transaction) while the user is still editing it.
+        if (event.currentTarget.contains(event.relatedTarget)) return
+        handleBlur()
+      }}
+    >
       <div className="relative min-w-0">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
           {symbol}
@@ -161,22 +184,64 @@ export function AmountInput({
           enterKeyHint="done"
           value={display}
           onChange={handleChange}
-          onBlur={handleBlur}
           placeholder={placeholder}
           aria-label={ariaLabel}
-          className={cn(isWide ? "pl-11" : "pl-7", className)}
+          className={cn(isWide ? "pl-11" : "pl-7", enableExpression && "h-11 pr-12", className)}
         />
+        {enableExpression && (
+          <button
+            type="button"
+            aria-label={`${showOperators ? "Hide" : "Show"} calculation buttons for ${ariaLabel.toLowerCase()}`}
+            aria-expanded={showOperators}
+            aria-controls={operatorsId}
+            title="Calculation buttons"
+            className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-expanded:text-foreground"
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={() => {
+              setShowOperators((shown) => !shown)
+              inputRef.current?.focus({ preventScroll: true })
+            }}
+          >
+            <Calculator className="size-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
       {enableExpression && (
         <div
           className={cn(
-            "flex h-9 min-w-24 max-w-36 items-center justify-end truncate text-sm tabular-nums",
+            "flex h-11 min-w-24 max-w-36 items-center justify-end truncate text-sm tabular-nums",
             expressionStatus?.hasResult && !expressionStatus.isValid
               ? "text-destructive"
               : "text-muted-foreground"
           )}
         >
           {preview}
+        </div>
+      )}
+      {enableExpression && (
+        <div
+          id={operatorsId}
+          role="group"
+          aria-label={`${ariaLabel} calculation buttons`}
+          hidden={!showOperators}
+          className={cn("col-span-2 gap-1", showOperators ? "flex" : "hidden")}
+        >
+          {[
+            ["+", "Add"], ["−", "Subtract or enter a negative amount"],
+            ["×", "Multiply"], ["÷", "Divide"],
+            ["(", "Open parenthesis"], [")", "Close parenthesis"],
+          ].map(([operator, label]) => (
+            <button
+              key={operator}
+              type="button"
+              aria-label={`${ariaLabel}: ${label}`}
+              className="h-11 min-w-0 flex-1 rounded-lg border border-input bg-muted/50 text-lg hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => insertOperator(operator)}
+            >
+              {operator}
+            </button>
+          ))}
         </div>
       )}
     </div>
